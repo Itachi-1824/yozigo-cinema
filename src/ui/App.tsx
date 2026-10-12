@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type SubmitEvent,
 } from "react";
 import { Home, MoviePage } from "./Editorial";
 import { AuthPage } from "./AuthPage";
@@ -38,6 +39,11 @@ type Movie = {
   poster_url: string;
   backdrop_url: string;
   genre: string;
+  release_date?: string;
+  certification?: string;
+  credits?: { name: string; role: string; image_url: string }[];
+  trailer_url?: string;
+  source_url?: string;
 };
 type Show = {
   id: number;
@@ -280,6 +286,7 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [soundOn, setSoundOn] = useState(false);
+  const [globalQuery, setGlobalQuery] = useState("");
 
   useEffect(() => {
     const onHash = () => {
@@ -330,6 +337,10 @@ export default function App() {
       localStorage.setItem("frame-sound", current ? "off" : "on");
       return !current;
     });
+  }
+  function submitGlobalSearch(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    go("");
   }
   function playSound(kind: "seat" | "confirm") {
     if (!soundOn) return;
@@ -420,6 +431,19 @@ export default function App() {
               </a>
             )}
           </nav>
+          <form
+            className="global-search"
+            role="search"
+            onSubmit={submitGlobalSearch}
+          >
+            <span className="sr-only">Search all films</span>
+            <input
+              value={globalQuery}
+              onChange={(event) => setGlobalQuery(event.target.value)}
+              placeholder="Search films"
+              aria-label="Search films"
+            />
+          </form>
           <div className="header-actions">
             <button
               className="icon-button sound-toggle"
@@ -432,7 +456,7 @@ export default function App() {
             </button>
             {user ? (
               <>
-                <span className="user-name">Hi, {user.name.split(" ")[0]}</span>
+                <span className="user-name">{user.name.split(" ")[0]}</span>
                 <button
                   className="icon-button"
                   title="Sign out"
@@ -464,6 +488,8 @@ export default function App() {
           <Home
             initialMovies={initialMovies}
             onMovie={(id) => go(`movie/${id}`)}
+            query={globalQuery}
+            onQueryChange={setGlobalQuery}
           />
         )}
         {route.page === "movie" && (
@@ -541,6 +567,7 @@ export default function App() {
           </div>
           <span>Made for movie nights worth remembering.</span>
           <span>© {new Date().getFullYear()} FRAME CINEMA</span>
+          <span>Sample films · Demo payments</span>
         </div>
       </footer>
       {toast && (
@@ -957,7 +984,7 @@ function SeatsPage({
             <span>Time</span>
             <strong>{clock(show.starts_at)}</strong>
           </div>
-          <div className="summary-line">
+          <div className="summary-line summary-seats">
             <span>Seats</span>
             <strong>
               {chosen.length ? chosen.join(", ") : "Choose seats"}
@@ -993,7 +1020,7 @@ function SeatsPage({
               Continue <ArrowRight size={17} />
             </Button>
           )}
-          <p className="summary-note">No charge until you confirm payment.</p>
+          <p className="summary-note">Demo payment · No real charge.</p>
         </aside>
       </div>
       {paymentOpen && hold && (
@@ -1017,12 +1044,22 @@ function SeatsPage({
             >
               <X size={20} />
             </button>
-            <span className="eyebrow">ONE LAST STEP</span>
-            <h2 id="payment-title">Ready for the big screen?</h2>
+            <h2 id="payment-title">Review booking</h2>
+            <div className="payment-details">
+              <strong>{movie.title}</strong>
+              <p>
+                {day(show.starts_at)} · {clock(show.starts_at)} IST
+              </p>
+              <p>{movie.language} · Screen 1</p>
+            </div>
             <p>
               Your seats <strong>{hold.seats.join(", ")}</strong> are held until
               the timer runs out.
             </p>
+            <div className="hold-clock" role="timer" aria-live="off">
+              <Clock3 size={17} /> Hold expires in {Math.floor(remaining / 60)}:
+              {String(remaining % 60).padStart(2, "0")}
+            </div>
             <div className="payment-amount">
               <span>Amount due</span>
               <strong>{money(hold.amount_paise)}</strong>
@@ -1045,6 +1082,8 @@ function SeatsPage({
             </Button>
             <p className="payment-note">
               This is a demo checkout. No real payment is taken.
+              <br />
+              Cancellation available until 2 hours before the show.
             </p>
           </section>
         </div>
@@ -1329,9 +1368,15 @@ function AdminPage({ csrf }: { csrf: string }) {
   const [seatData, setSeatData] = useState<ShowDetail | null>(null);
   const [editing, setEditing] = useState<Movie | null>(null);
   const [movieFormOpen, setMovieFormOpen] = useState(false);
+  const [creditFields, setCreditFields] = useState<
+    NonNullable<Movie["credits"]>
+  >([]);
   const [showFormOpen, setShowFormOpen] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setCreditFields(editing?.credits || []);
+  }, [editing, movieFormOpen]);
   const load = useCallback(async () => {
     try {
       const [movieData, showData] = await Promise.all([
@@ -1365,6 +1410,19 @@ function AdminPage({ csrf }: { csrf: string }) {
     setBusy(true);
     setError("");
     const fields = new FormData(event.currentTarget);
+    const credits = creditFields.map((credit) => ({
+      ...credit,
+      name: credit.name.trim(),
+      role: credit.role.trim(),
+      image_url: credit.image_url.trim(),
+    }));
+    if (credits.some((credit) => !credit.name || !credit.role)) {
+      setError(
+        "Enter a name and role for each credit, or remove the empty row.",
+      );
+      setBusy(false);
+      return;
+    }
     const body = {
       title: String(fields.get("title")),
       description: String(fields.get("description")),
@@ -1374,6 +1432,11 @@ function AdminPage({ csrf }: { csrf: string }) {
       rating: String(fields.get("rating")),
       poster_url: String(fields.get("poster_url")),
       backdrop_url: String(fields.get("backdrop_url")),
+      release_date: String(fields.get("release_date") || ""),
+      certification: String(fields.get("certification") || ""),
+      trailer_url: String(fields.get("trailer_url") || ""),
+      source_url: String(fields.get("source_url") || ""),
+      credits,
     };
     try {
       await api(
@@ -1511,7 +1574,11 @@ function AdminPage({ csrf }: { csrf: string }) {
           </div>
           <div className="admin-show-list">
             {shows.map((show) => (
-              <article className="admin-show" key={show.id}>
+              <article
+                className="admin-show"
+                key={show.id}
+                data-show-id={show.id}
+              >
                 <div>
                   <strong>{show.movie_title}</strong>
                   <span>
@@ -1744,6 +1811,100 @@ function AdminPage({ csrf }: { csrf: string }) {
                   required
                 />
               </label>
+              <div className="form-grid">
+                <label>
+                  Release date
+                  <input
+                    name="release_date"
+                    type="date"
+                    defaultValue={editing?.release_date}
+                  />
+                </label>
+                <label>
+                  Certification
+                  <input
+                    name="certification"
+                    defaultValue={editing?.certification}
+                  />
+                </label>
+              </div>
+              <label>
+                Trailer URL
+                <input
+                  name="trailer_url"
+                  type="url"
+                  defaultValue={editing?.trailer_url}
+                />
+              </label>
+              <label>
+                Source URL
+                <input
+                  name="source_url"
+                  type="url"
+                  defaultValue={editing?.source_url}
+                />
+              </label>
+              <fieldset className="credits-editor">
+                <legend>Cast &amp; crew</legend>
+                {creditFields.map((credit, index) => (
+                  <div className="credit-fields" key={index}>
+                    {(["name", "role", "image_url"] as const).map((field) => (
+                      <label key={field}>
+                        {field === "image_url"
+                          ? "Photo URL (optional)"
+                          : field === "name"
+                            ? "Name"
+                            : "Role"}
+                        <input
+                          aria-label={`Credit ${index + 1} ${field === "image_url" ? "photo URL" : field}`}
+                          value={credit[field]}
+                          maxLength={
+                            field === "image_url"
+                              ? 2048
+                              : field === "name"
+                                ? 100
+                                : 80
+                          }
+                          onChange={(event) =>
+                            setCreditFields((current) =>
+                              current.map((item, row) =>
+                                row === index
+                                  ? { ...item, [field]: event.target.value }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
+                    ))}
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`Remove credit ${index + 1}`}
+                      onClick={() =>
+                        setCreditFields((current) =>
+                          current.filter((_, row) => row !== index),
+                        )
+                      }
+                    >
+                      <X size={17} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="button button-outline"
+                  disabled={creditFields.length >= 24}
+                  onClick={() =>
+                    setCreditFields((current) => [
+                      ...current,
+                      { name: "", role: "", image_url: "" },
+                    ])
+                  }
+                >
+                  Add credit
+                </button>
+              </fieldset>
               <ErrorLine>{error}</ErrorLine>
               <Button
                 className="button button-primary full"

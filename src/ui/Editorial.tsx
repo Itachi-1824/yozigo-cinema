@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, ExternalLink, Search } from "lucide-react";
 
+type Credit = { name: string; role: string; image_url: string };
 type Movie = {
   id: number;
   title: string;
@@ -11,6 +12,11 @@ type Movie = {
   poster_url: string;
   backdrop_url: string;
   genre: string;
+  release_date?: string;
+  certification?: string;
+  credits?: Credit[];
+  trailer_url?: string;
+  source_url?: string;
 };
 type Show = {
   id: number;
@@ -21,16 +27,10 @@ type Show = {
   available_seats: number;
 };
 const known = ["orbit", "monsoon", "neon", "last-light"];
-const slug = (url: string) =>
-  known.find((name) => url.endsWith(`/${name}.svg`));
-const art = (movie: Movie) =>
-  slug(movie.poster_url)
-    ? `/art/${slug(movie.poster_url)}.jpg`
-    : movie.backdrop_url;
-const poster = (movie: Movie) =>
-  slug(movie.poster_url)
-    ? `/posters/${slug(movie.poster_url)}-v2.webp`
-    : movie.poster_url;
+const localPoster = (url: string) => {
+  const name = known.find((item) => url.endsWith(`/${item}.svg`));
+  return name ? `/posters/${name}-v2.webp` : url;
+};
 const fallback = (
   event: React.SyntheticEvent<HTMLImageElement>,
   url: string,
@@ -69,7 +69,6 @@ const key = (iso: string) =>
   }).format(new Date(iso));
 const duration = (minutes: number) =>
   `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
-
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`/api${path}`, {
     credentials: "same-origin",
@@ -86,19 +85,23 @@ async function get<T>(path: string): Promise<T> {
 export function Home({
   onMovie,
   initialMovies,
+  query,
+  onQueryChange,
 }: {
   onMovie: (id: number) => void;
   initialMovies: Movie[];
+  query: string;
+  onQueryChange: (query: string) => void;
 }) {
-  const [movies, setMovies] = useState<Movie[]>(initialMovies);
-  const [next, setNext] = useState<Record<number, Show | undefined>>({});
-  const [featured, setFeatured] = useState(0);
+  const [movies, setMovies] = useState(initialMovies);
+  const [next, setNext] = useState<Record<number, Show | null | undefined>>({});
   const [genre, setGenre] = useState("All");
-  const [query, setQuery] = useState("");
+  const [language, setLanguage] = useState("All");
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(true);
   function load() {
     setError("");
+    setNext({});
     setLoaded(false);
     get<Movie[]>("/movies")
       .then(async (list) => {
@@ -111,10 +114,14 @@ export function Home({
           Object.fromEntries(
             shows.map((result, index) => [
               list[index].id,
-              result.status === "fulfilled" ? result.value.shows[0] : undefined,
+              result.status === "fulfilled"
+                ? (result.value.shows[0] ?? null)
+                : undefined,
             ]),
           ),
         );
+        if (shows.some((result) => result.status === "rejected"))
+          setError("Some showtimes could not be loaded. Please retry.");
       })
       .catch((failure) => {
         setError(failure.message);
@@ -124,188 +131,126 @@ export function Home({
   useEffect(() => {
     load();
   }, []);
-  const film = movies[featured];
   const genres = ["All", ...new Set(movies.map((movie) => movie.genre))];
+  const languages = ["All", ...new Set(movies.map((movie) => movie.language))];
   const visible = movies.filter(
     (movie) =>
       (genre === "All" || movie.genre === genre) &&
+      (language === "All" || movie.language === language) &&
       `${movie.title} ${movie.language} ${movie.genre}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
   return (
-    <>
-      <div className="home-feature">
-        <section className="edition-head wrap">
-          <div className="edition-top">
-            <span>NOW SHOWING</span>
-            <span>
-              {movies.length
-                ? `${String(movies.length).padStart(2, "0")} FILMS`
-                : ""}
-            </span>
-          </div>
-          <h1>
-            A good film.
-            <br />
-            <em>A great night.</em>
-          </h1>
-          <p>The lights go down. Everything else can wait.</p>
-        </section>
-        <section
-          className={film ? "featured-film" : "featured-film is-loading"}
-          aria-label="Featured films"
-        >
-          {film ? (
-            <>
-              <div className="feature-image" key={film.id}>
-                <img
-                  src={art(film)}
-                  onError={(event) => fallback(event, film.backdrop_url)}
-                  alt=""
-                />
-                <div className="feature-shade" />
-              </div>
-              <div className="wrap feature-inner">
-                <div className="feature-copy">
-                  <span className="feature-index">NOW SHOWING</span>
-                  <h2>{film.title}</h2>
-                  <p>
-                    {film.genre} <b>·</b> {film.language} <b>·</b>{" "}
-                    {duration(film.duration_minutes)} <b>·</b> {film.rating}
-                  </p>
-                  <button
-                    className="signal-button"
-                    onClick={() => onMovie(film.id)}
-                  >
-                    Book tickets <ArrowRight size={19} />
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="wrap feature-loading">
-              {error ? (
-                <div role="alert">
-                  <p>{error}</p>
-                  <button className="button" onClick={load}>
-                    Try loading films again
-                  </button>
-                </div>
-              ) : loaded ? (
-                "No films are showing yet."
-              ) : (
-                "Preparing the screen…"
-              )}
-            </div>
-          )}
-        </section>
-        {movies.length > 0 && (
-          <div
-            className="feature-selector wrap"
-            role="group"
-            aria-label="Choose featured film"
-          >
-            {movies.map((movie, index) => (
-              <button
-                key={movie.id}
-                aria-current={featured === index ? "true" : undefined}
-                className={featured === index ? "active" : ""}
-                onClick={() => setFeatured(index)}
-              >
-                <img
-                  src={art(movie)}
-                  alt=""
-                  onError={(event) => fallback(event, movie.backdrop_url)}
-                />
-                <span>
-                  <strong>{movie.title}</strong>
-                  <small>{movie.genre}</small>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+    <section className="catalogue wrap" id="films">
+      <div className="catalogue-head">
+        <div>
+          <h1>Now showing</h1>
+          <p>Choose a film, then a time that works for you.</p>
+        </div>
+        <label className="film-search">
+          <Search size={18} />
+          <span className="sr-only">Search films</span>
+          <input
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Search films"
+          />
+        </label>
       </div>
-      <section className="film-list wrap" id="films">
-        <div className="film-list-intro">
-          <h2>
-            On the screen<span>.</span>
-          </h2>
-          <p>Find a story, then find your seat.</p>
-        </div>
-        <div className="film-tools">
-          <div
-            className="genre-controls"
-            role="group"
-            aria-label="Filter by genre"
-          >
-            {genres.map((value) => (
-              <button
-                key={value}
-                className={genre === value ? "active" : ""}
-                aria-pressed={genre === value}
-                onClick={() => setGenre(value)}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-          <label className="film-search">
-            <Search size={18} />
-            <span className="sr-only">Search films</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search films"
-            />
-          </label>
-        </div>
-        {error && (
-          <p className="error-line" role="alert">
-            {error}
-          </p>
-        )}
-        {movies.length > 0 && !visible.length && (
-          <p className="empty-state">No films found. Try another search.</p>
-        )}
-        <div className="editorial-grid">
-          {visible.map((movie, index) => (
+      <div className="catalogue-filters">
+        <div
+          className="genre-controls"
+          role="group"
+          aria-label="Filter by genre"
+        >
+          {genres.map((value) => (
             <button
-              key={movie.id}
-              className="editorial-film"
-              onClick={() => onMovie(movie.id)}
+              key={value}
+              className={genre === value ? "active" : ""}
+              aria-pressed={genre === value}
+              onClick={() => setGenre(value)}
             >
-              <span className="editorial-poster">
-                <img
-                  src={poster(movie)}
-                  onError={(event) => fallback(event, movie.poster_url)}
-                  alt=""
-                  loading={index > 1 ? "lazy" : "eager"}
-                />
-                <span className="poster-number">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-              </span>
-              <span className="editorial-film-line">
-                <span>
-                  {movie.genre} / {movie.language} /{" "}
-                  {duration(movie.duration_minutes)}
-                </span>
-                <span>{movie.rating}</span>
-              </span>
-              <strong>{movie.title}</strong>
-              <span className="next-show">
-                {next[movie.id]
-                  ? `Next · ${shortDay(next[movie.id]!.starts_at)} ${time(next[movie.id]!.starts_at)} · ${money(next[movie.id]!.price_paise)}`
-                  : "View film & showtimes"}
-                <ArrowRight size={17} />
-              </span>
+              {value}
             </button>
           ))}
         </div>
-      </section>
-    </>
+        <div
+          className="genre-controls language-controls"
+          role="group"
+          aria-label="Filter by language"
+        >
+          {languages.map((value) => (
+            <button
+              key={value}
+              className={language === value ? "active" : ""}
+              aria-pressed={language === value}
+              onClick={() => setLanguage(value)}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+      </div>
+      {error && (
+        <p className="error-line" role="alert">
+          {error} <button onClick={load}>Try again</button>
+        </p>
+      )}
+      {movies.length > 0 && !visible.length && (
+        <p className="empty-state">No films found. Try another search.</p>
+      )}
+      <div className="editorial-grid">
+        {visible.map((movie, index) => (
+          <article className="editorial-film" key={movie.id}>
+            <button
+              className="film-card-open"
+              onClick={() => onMovie(movie.id)}
+              aria-label={`View ${movie.title} showtimes`}
+            >
+              <img
+                className="editorial-poster"
+                src={localPoster(movie.poster_url)}
+                onError={(event) => fallback(event, movie.poster_url)}
+                alt={`${movie.title} poster`}
+                loading={index > 3 ? "lazy" : "eager"}
+              />
+            </button>
+            <div className="film-card-copy">
+              <h2>{movie.title}</h2>
+              <p>
+                {movie.genre} · {movie.language}
+              </p>
+              <p>
+                {duration(movie.duration_minutes)} ·{" "}
+                {movie.certification || movie.rating}
+              </p>
+              {next[movie.id] ? (
+                <span className="next-show">
+                  Next: {shortDay(next[movie.id]!.starts_at)} ·{" "}
+                  {time(next[movie.id]!.starts_at)} ·{" "}
+                  {money(next[movie.id]!.price_paise)}
+                </span>
+              ) : (
+                <span className="next-show">
+                  {!Object.hasOwn(next, movie.id)
+                    ? "Loading showtimes…"
+                    : next[movie.id] === null
+                      ? "Showtimes coming soon"
+                      : "Showtimes unavailable"}
+                </span>
+              )}
+              <button className="text-arrow" onClick={() => onMovie(movie.id)}>
+                View showtimes <ArrowRight size={16} />
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+      {!movies.length && loaded && !error && (
+        <p className="empty-state">No films are showing yet.</p>
+      )}
+    </section>
   );
 }
 
@@ -340,47 +285,117 @@ export function MoviePage({
         <a href="#">Back to films</a>
       </div>
     );
-  if (!data) return <div className="loading">Preparing the screen…</div>;
+  if (!data)
+    return (
+      <div className="loading" role="status">
+        Loading film details…
+      </div>
+    );
   const { movie, shows } = data;
   const dates = [...new Set(shows.map((show) => key(show.starts_at)))];
+  const selectedShows = shows.filter(
+    (show) => key(show.starts_at) === chosenDay,
+  );
   return (
     <>
-      <section className="film-detail wrap">
-        <a className="back-link dark" href="#">
-          <ArrowLeft size={17} /> All films
-        </a>
-        <div className="film-detail-layout">
-          <div className="detail-art">
+      <section className="movie-detail">
+        <div className="wrap">
+          <a className="back-link dark" href="#">
+            <ArrowLeft size={17} /> Now showing
+          </a>
+          <div className="film-detail-layout">
             <img
-              src={art(movie)}
-              onError={(event) => fallback(event, movie.backdrop_url)}
-              alt=""
+              className="detail-poster"
+              src={localPoster(movie.poster_url)}
+              onError={(event) => fallback(event, movie.poster_url)}
+              alt={`${movie.title} poster`}
             />
-          </div>
-          <div className="detail-editorial">
-            <span className="detail-category">
-              {movie.genre} <span>/</span> Now showing
-            </span>
-            <h1>{movie.title}</h1>
-            <div className="film-facts">
-              <span>{movie.language}</span>
-              <span>{duration(movie.duration_minutes)}</span>
-              <span>{movie.rating}</span>
+            <div className="detail-copy">
+              <h1>{movie.title}</h1>
+              <p className="film-facts">
+                {movie.genre} <span>·</span> {movie.language} <span>·</span>{" "}
+                {duration(movie.duration_minutes)} <span>·</span>{" "}
+                {movie.certification || movie.rating}
+                {movie.release_date && (
+                  <>
+                    <span>·</span>{" "}
+                    {new Intl.DateTimeFormat("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    }).format(new Date(`${movie.release_date}T00:00:00`))}
+                  </>
+                )}
+              </p>
+              <p>{movie.description}</p>
+              <button
+                className="button button-primary"
+                onClick={() => {
+                  showtimesRef.current?.focus({ preventScroll: true });
+                  showtimesRef.current?.scrollIntoView({
+                    behavior: matchMedia("(prefers-reduced-motion: reduce)")
+                      .matches
+                      ? "auto"
+                      : "smooth",
+                    block: "start",
+                  });
+                }}
+              >
+                Book tickets <ArrowRight size={17} />
+              </button>
+              {movie.trailer_url && (
+                <a
+                  className="text-arrow external-link"
+                  href={movie.trailer_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Watch trailer <ExternalLink size={15} />
+                </a>
+              )}
             </div>
-            <p>{movie.description}</p>
-            <button
-              className="underlined-action"
-              onClick={() => {
-                showtimesRef.current?.focus({ preventScroll: true });
-                showtimesRef.current?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "start",
-                });
-              }}
-            >
-              See showtimes <ArrowRight size={18} />
-            </button>
           </div>
+          {movie.credits?.length ? (
+            <section className="credits">
+              <h2>Cast &amp; crew</h2>
+              <div>
+                {movie.credits.map((credit) => (
+                  <article
+                    key={`${credit.name}-${credit.role}`}
+                    className="credit"
+                  >
+                    <span className="credit-avatar">
+                      {credit.image_url ? (
+                        <img src={credit.image_url} alt="" />
+                      ) : (
+                        credit.name
+                          .split(/\s+/)
+                          .map((part) => part[0])
+                          .slice(0, 2)
+                          .join("")
+                      )}
+                    </span>
+                    <span>
+                      <strong>{credit.name}</strong>
+                      <small>{credit.role}</small>
+                    </span>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          {movie.source_url && (
+            <p className="source-attribution">
+              Film information:{" "}
+              <a
+                href={movie.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                source
+              </a>
+            </p>
+          )}
         </div>
       </section>
       <section
@@ -390,9 +405,9 @@ export function MoviePage({
         id="showtimes"
       >
         <div className="showtime-intro">
-          <h2>Choose a show.</h2>
+          <h2>Showtimes</h2>
           <p>
-            All times are India Standard Time. Select a screening to choose your
+            All times are India Standard Time. Select a screening to choose
             seats.
           </p>
         </div>
@@ -420,57 +435,32 @@ export function MoviePage({
                         weekday: "short",
                       }).format(new Date(first.starts_at))}
                     </strong>
-                    <span>
-                      {new Intl.DateTimeFormat("en-IN", {
-                        timeZone: "Asia/Kolkata",
-                        day: "numeric",
-                        month: "short",
-                      }).format(new Date(first.starts_at))}
-                    </span>
+                    <span>{shortDay(first.starts_at)}</span>
                   </button>
                 );
               })}
             </div>
             <div className="screenings">
-              <div className="screening-header">
-                <span>
-                  {day(
-                    shows.find((show) => key(show.starts_at) === chosenDay)
-                      ?.starts_at || shows[0].starts_at,
-                  )}
-                </span>
-                <span>
-                  {
-                    shows.filter((show) => key(show.starts_at) === chosenDay)
-                      .length
-                  }{" "}
-                  screenings
-                </span>
-              </div>
-              {shows
-                .filter((show) => key(show.starts_at) === chosenDay)
-                .map((show) => (
-                  <button
-                    className="screening"
-                    key={show.id}
-                    disabled={show.available_seats === 0}
-                    onClick={() => onBook(show.id)}
-                  >
-                    <span className="screening-time">
-                      {time(show.starts_at)}
-                    </span>
-                    <span className="screening-availability">
-                      {show.available_seats
-                        ? `${show.available_seats} seats left`
-                        : "Sold out"}
-                      <small>ONE SCREEN</small>
-                    </span>
-                    <span className="screening-price">
-                      {money(show.price_paise)}
-                    </span>
-                    <ArrowRight size={21} />
-                  </button>
-                ))}
+              <h3>{day(selectedShows[0]?.starts_at || shows[0].starts_at)}</h3>
+              {selectedShows.map((show) => (
+                <button
+                  className="screening"
+                  key={show.id}
+                  disabled={show.available_seats === 0}
+                  onClick={() => onBook(show.id)}
+                >
+                  <span className="screening-time">{time(show.starts_at)}</span>
+                  <span className="screening-availability">
+                    {show.available_seats
+                      ? `${show.available_seats} of 80 available`
+                      : "Sold out"}
+                  </span>
+                  <span className="screening-price">
+                    {money(show.price_paise)}
+                  </span>
+                  <ArrowRight size={18} />
+                </button>
+              ))}
             </div>
           </>
         ) : (

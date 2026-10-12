@@ -77,15 +77,6 @@ export function AuthPage({
 
   return (
     <section className="auth-page">
-      <div className="auth-photo">
-        <img src="/art/monsoon.jpg" alt="" />
-        <div className="auth-photo-shade" />
-        <div className="auth-photo-caption">
-          <span>NOW SHOWING AT FRAME</span>
-          <strong>Monsoon Letters</strong>
-          <p>Step out of the everyday. Into a story worth keeping.</p>
-        </div>
-      </div>
       <div className="auth-form-side">
         <div className="auth-form-inner">
           <a className="back-link dark" href="#">
@@ -96,8 +87,8 @@ export function AuthPage({
           </h1>
           <p className="auth-lede">
             {mode === "login"
-              ? "Sign in to choose your seat and keep your tickets close."
-              : "Create an account to book the stories you want to see."}
+              ? "Sign in to book tickets and view your bookings."
+              : "Create an account to book tickets and view your bookings."}
           </p>
           <form onSubmit={submit} aria-busy={busy}>
             {mode === "signup" && (
@@ -186,7 +177,7 @@ export function AuthPage({
             </button>
           </p>
           <p className="auth-quiet">
-            One account for your tickets. No noise in the middle of the film.
+            Your details are used only for this sample cinema account.
           </p>
         </div>
       </div>

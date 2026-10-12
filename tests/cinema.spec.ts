@@ -1,28 +1,68 @@
 import { expect, test, type Page } from "@playwright/test";
 
-test("loading follows real readiness and a failed catalogue can be retried", async ({ page }) => {
+test("loading follows real readiness and a failed catalogue can be retried", async ({
+  page,
+}) => {
   let release!: () => void;
-  const ready = new Promise<void>(resolve => { release = resolve; });
-  await page.route("**/api/movies", async route => { await ready; await route.continue(); });
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/movies", async (route) => {
+    await ready;
+    await route.continue();
+  });
   await page.goto("/");
   try {
-    await expect(page.getByRole("heading", { name: "Setting the scene." })).toBeVisible();
-    await expect(page.locator(".boot-screen")).toHaveAttribute("aria-busy", "true");
+    await expect(
+      page.getByRole("heading", { name: "Setting the scene." }),
+    ).toBeVisible();
+    await expect(page.locator(".boot-screen")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
     await page.screenshot({ path: "artifacts/loading-screen.png" });
-  } finally { release(); }
-  await expect(page.getByRole("heading", { name: "A good film. A great night." })).toBeVisible();
+  } finally {
+    release();
+  }
+  await expect(
+    page.getByRole("heading", { name: "Now showing", exact: true }),
+  ).toBeVisible();
   await page.unroute("**/api/movies");
-  await page.route("**/api/movies", route => route.abort("failed"));
+  await page.route("**/api/movies", (route) => route.abort("failed"));
   await page.reload();
-  await expect(page.getByRole("heading", { name: "A brief intermission." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "A brief intermission." }),
+  ).toBeVisible();
   await page.unroute("**/api/movies");
   await page.getByRole("button", { name: "Try again", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "A good film. A great night." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Now showing", exact: true }),
+  ).toBeVisible();
 });
 
 const admin = { email: "admin@frame.test", password: "FrameAdmin2026!" };
 const guest = { email: "customer@frame.test", password: "FrameGuest2026!" };
 const rival = { email: "rival@frame.test", password: "FrameRival2026!" };
+
+test("a failed screening request is reported and retry restores actual showtimes", async ({
+  page,
+}) => {
+  await page.route("**/api/movies/1", (route) => route.abort("failed"));
+  await page.goto("/");
+  await expect(page.getByRole("alert")).toContainText(
+    "Some showtimes could not be loaded",
+  );
+  const film = page.locator(".editorial-film").filter({
+    has: page.getByRole("heading", { name: "Beyond the Blue", exact: true }),
+  });
+  await expect(
+    film.getByText("Showtimes unavailable", { exact: true }),
+  ).toBeVisible();
+  await page.unroute("**/api/movies/1");
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(film.locator(".next-show")).toContainText("Next:");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
 
 async function login(page: Page, credentials = guest) {
   await page.goto("/#login");
@@ -32,7 +72,9 @@ async function login(page: Page, credentials = guest) {
   await page.getByLabel("Email address").fill(credentials.email);
   await page.locator('input[name="password"]').fill(credentials.password);
   await page.locator("form").getByRole("button", { name: "Sign in" }).click();
-  await expect(page.locator(".user-name")).toContainText("Hi,");
+  await expect(
+    page.getByRole("button", { name: "Sign out", exact: true }),
+  ).toBeVisible();
 }
 
 test.beforeEach(async ({ request }) => {
@@ -44,9 +86,13 @@ test.beforeEach(async ({ request }) => {
 });
 
 async function firstShow(page: Page) {
-  await page.getByRole("button", { name: "Book tickets" }).click();
   await page
-    .getByRole("button", { name: /seats left/ })
+    .locator(".editorial-film")
+    .first()
+    .getByRole("button", { name: "View showtimes", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: /of 80 available/ })
     .first()
     .click();
   await expect(page.getByRole("group", { name: "Cinema seats" })).toBeVisible();
@@ -58,7 +104,7 @@ async function createHold(page: Page, seat: string) {
     .click();
   await page.getByRole("button", { name: /^Continue/ }).click();
   await expect(
-    page.getByRole("dialog", { name: "Ready for the big screen?" }),
+    page.getByRole("dialog", { name: "Review booking" }),
   ).toBeVisible();
 }
 
@@ -94,10 +140,46 @@ test("catalogue searches and authentication reports generic invalid and duplicat
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByText("On the screen.")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Now showing", exact: true }),
+  ).toBeVisible();
   await expect(page.locator(".editorial-film")).toHaveCount(4);
-  await page.getByPlaceholder("Search films").fill("Neon");
+  await page
+    .getByRole("search")
+    .getByRole("textbox", { name: "Search films", exact: true })
+    .fill("Neon");
   await expect(page.locator(".editorial-film")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "View Neon City showtimes", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Neon City", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Cast & crew", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Zara Quinn", { exact: true })).toBeVisible();
+  const search = page
+    .getByRole("search")
+    .getByRole("textbox", { name: "Search films", exact: true });
+  await search.fill("Beyond");
+  await search.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "Now showing", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".editorial-film")).toHaveCount(1);
+  await expect(page.locator(".editorial-film").getByRole("heading")).toHaveText(
+    "Beyond the Blue",
+  );
+  await search.fill("");
+  await page
+    .getByRole("group", { name: "Filter by language" })
+    .getByRole("button", { name: "Hindi", exact: true })
+    .click();
+  await expect(page.locator(".editorial-film")).toHaveCount(1);
+  await expect(page.locator(".editorial-film").getByRole("heading")).toHaveText(
+    "Monsoon Letters",
+  );
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(
     page.getByRole("heading", { name: "Welcome back." }),
@@ -132,6 +214,32 @@ test("signup reaches the real authenticated 80-seat map and limits a selection t
       .click();
   await expect(page.getByRole("alert")).toContainText("up to 6");
   await expect(page.getByText(seats.slice(0, 6).join(", "))).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const targets = await page.locator(".seat").evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      width: node.getBoundingClientRect().width,
+      height: node.getBoundingClientRect().height,
+    })),
+  );
+  expect(
+    targets.every((target) => target.width >= 44 && target.height >= 44),
+  ).toBe(true);
+  await expect
+    .poll(() =>
+      page
+        .locator(".summary-panel")
+        .evaluate((node) =>
+          Math.abs(node.getBoundingClientRect().bottom - window.innerHeight),
+        ),
+    )
+    .toBeLessThan(2);
+  expect(
+    await page
+      .locator(".summary-panel")
+      .evaluate(
+        (node) => node.getBoundingClientRect().top > window.innerHeight / 2,
+      ),
+  ).toBe(true);
 });
 
 test("failed payment retains a hold, retry confirms it, exposes ticket and booking history", async ({
@@ -144,9 +252,7 @@ test("failed payment retains a hold, retry confirms it, exposes ticket and booki
   await createHold(page, seat);
   await page.getByRole("button", { name: "Simulate failed payment" }).click();
   await expect(
-    page
-      .getByRole("dialog", { name: "Ready for the big screen?" })
-      .getByRole("alert"),
+    page.getByRole("dialog", { name: "Review booking" }).getByRole("alert"),
   ).toContainText("Payment failed");
   await expect(
     page.getByText(new RegExp(`${seat} are held until`)),
@@ -215,7 +321,7 @@ test("two browser sessions race the same seat and the loser sees its held state 
     const winner = oneResponse.status() === 201 ? pageOne : pageTwo;
     const loser = winner === pageOne ? pageTwo : pageOne;
     await expect(
-      winner.getByRole("dialog", { name: "Ready for the big screen?" }),
+      winner.getByRole("dialog", { name: "Review booking" }),
     ).toBeVisible();
     await expect(
       loser.getByRole("alert").filter({ hasText: /Choose another seat/ }),
@@ -298,27 +404,69 @@ test("admin can add, edit and delete a film, rejects an overlapping show, and a 
     await page.getByLabel("Duration (minutes)").fill("100");
     await page.getByLabel("Poster URL").fill("/posters/orbit.svg");
     await page.getByLabel("Backdrop URL").fill("/backdrops/orbit.svg");
+    await page.getByLabel("Release date", { exact: true }).fill("2026-10-09");
+    await page.getByRole("button", { name: "Add credit", exact: true }).click();
+    await page
+      .getByRole("textbox", { name: "Credit 1 name", exact: true })
+      .fill("Sample Actor");
+    await page
+      .getByRole("textbox", { name: "Credit 1 role", exact: true })
+      .fill("Lead cast");
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Add film" })
       .click();
     const item = page.locator(".admin-film", { hasText: title });
     await expect(item).toBeVisible();
+    const stored = (await (await page.request.get("/api/movies")).json()).find(
+      (movie: { title: string }) => movie.title === title,
+    );
+    expect(stored.credits).toEqual([
+      { name: "Sample Actor", role: "Lead cast", image_url: "" },
+    ]);
+    expect(stored.release_date).toBe("2026-10-09");
     await item.getByRole("button", { name: "Edit" }).click();
     await page.getByLabel("Title").fill(`${title} edited`);
+    await page.getByLabel("Release date", { exact: true }).fill("");
+    await page
+      .getByRole("button", { name: "Remove credit 1", exact: true })
+      .click();
     await page.getByRole("button", { name: "Save changes" }).click();
     const edited = page.locator(".admin-film", { hasText: `${title} edited` });
     await expect(edited).toBeVisible();
+    const cleared = await (
+      await page.request.get(`/api/movies/${stored.id}`)
+    ).json();
+    expect(cleared.movie.credits).toEqual([]);
+    expect(cleared.movie.release_date).toBe("");
     page.once("dialog", (dialog) => dialog.accept());
     await edited.getByRole("button", { name: "Delete" }).click();
     await expect(edited).toHaveCount(0);
     await page.getByRole("button", { name: "Showtimes" }).click();
-    const date = new Date(Date.now() + 370 * 24 * 60 * 60 * 1_000);
+    const screenings = await (
+      await page.request.get("/api/admin/shows")
+    ).json();
+    const date = new Date(
+      Math.max(
+        Date.now() + 370 * 86400000,
+        ...screenings.map((show: { ends_at: string }) =>
+          new Date(show.ends_at).getTime(),
+        ),
+      ) + 86400000,
+    );
     const startsAt = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T18:00`;
     await page.getByRole("button", { name: "Add show" }).click();
     await page.getByLabel("Start time (your local time)").fill(startsAt);
     await page.getByLabel("Ticket price (₹)").fill("300");
+    const creating = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/admin/shows",
+    );
     await page.getByRole("button", { name: "Create show" }).click();
+    const created = await creating;
+    expect(created.status()).toBe(201);
+    const createdShowId = (await created.json()).id;
     await expect(page.getByRole("dialog", { name: "Add a show" })).toHaveCount(
       0,
     );
@@ -333,9 +481,12 @@ test("admin can add, edit and delete a film, rejects an overlapping show, and a 
       .getByRole("dialog", { name: "Add a show" })
       .getByRole("button", { name: "Close" })
       .click();
-    const createdShow = page.locator(".admin-show").last();
+    const createdShow = page.locator(
+      `.admin-show[data-show-id="${createdShowId}"]`,
+    );
     page.once("dialog", (dialog) => dialog.accept());
     await createdShow.getByRole("button", { name: "Delete" }).click();
+    await expect(createdShow).toHaveCount(0);
     const customer = await customerContext.newPage();
     await login(customer);
     await customer.goto("/#admin");

@@ -153,8 +153,8 @@ test("movie metadata is validated, returned, and retained by metadata-omitting u
   for (const invalid of [
     { release_date: "2026-02-29" },
     { credits: [{ name: "", role: "Director", image_url: "" }] },
-    { gallery: ["javascript:alert(1)"] },
-    { trailer_url: "javascript:alert(1)" },
+    { gallery: ["invalid:movie-link"] },
+    { trailer_url: "invalid:movie-link" },
     { source_url: "http://example.test/metadata" },
   ])
     assert.equal(

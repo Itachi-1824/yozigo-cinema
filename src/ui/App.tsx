@@ -164,7 +164,7 @@ function SeatsPage({ id, csrf, onBooked }: { id: number; csrf: string; onBooked:
         const unavailable = selectedRef.current.filter(label => { const seat = result.seats.find(item => item.label === label); return !seat || seat.state !== 'available'; });
         if (unavailable.length) { setSelected(current => current.filter(label => !unavailable.includes(label))); setNotice(`${unavailable.join(', ')} ${unavailable.length === 1 ? 'is' : 'are'} no longer available. Your selection has been updated.`); }
       }
-    } catch (failure) { setNetworkError(true); if (!data) setError(displayError(failure)); }
+    } catch (failure) { setNetworkError(true); if (!initialized.current) setError(displayError(failure)); }
   }, [id]);
   useEffect(() => { void refresh(); const poll = window.setInterval(() => void refresh(), 3000); const tick = window.setInterval(() => setNow(Date.now() + offset.current), 1000); return () => { clearInterval(poll); clearInterval(tick); }; }, [refresh]);
   const paymentDialog = useDialog(paymentOpen, () => setPaymentOpen(false));

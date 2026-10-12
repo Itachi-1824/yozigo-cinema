@@ -28,13 +28,14 @@ export function Home({ onMovie }: { onMovie: (id: number) => void }) {
   const [genre, setGenre] = useState('All');
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
+  const [loaded, setLoaded] = useState(false);
   function load() {
-    setError('');
+    setError(''); setLoaded(false);
     get<Movie[]>('/movies').then(async list => {
-      setMovies(list);
+      setMovies(list); setLoaded(true);
       const shows = await Promise.allSettled(list.map(movie => get<{ shows: Show[] }>(`/movies/${movie.id}`)));
       setNext(Object.fromEntries(shows.map((result, index) => [list[index].id, result.status === 'fulfilled' ? result.value.shows[0] : undefined])));
-    }).catch(failure => setError(failure.message));
+    }).catch(failure => { setError(failure.message); setLoaded(true); });
   }
   useEffect(() => { load(); }, []);
   const film = movies[featured];
@@ -43,7 +44,7 @@ export function Home({ onMovie }: { onMovie: (id: number) => void }) {
   return <>
     <div className="home-feature"><section className="edition-head wrap"><div className="edition-top"><span>NOW SHOWING</span><span>{movies.length ? `${String(movies.length).padStart(2, '0')} FILMS` : ''}</span></div><h1>A good film.<br /><em>A great night.</em></h1><p>The lights go down. Everything else can wait.</p></section>
     <section className={film ? 'featured-film' : 'featured-film is-loading'} aria-label="Featured films">
-      {film ? <><div className="feature-image" key={film.id}><img src={art(film)} onError={event => fallback(event, film.backdrop_url)} alt="" /><div className="feature-shade" /></div><div className="wrap feature-inner"><div className="feature-copy"><span className="feature-index">NOW SHOWING</span><h2>{film.title}</h2><p>{film.genre} <b>·</b> {film.language} <b>·</b> {duration(film.duration_minutes)} <b>·</b> {film.rating}</p><button className="signal-button" onClick={() => onMovie(film.id)}>Book tickets <ArrowRight size={19} /></button></div></div></> : <div className="wrap feature-loading">{error ? <div role="alert"><p>{error}</p><button className="button" onClick={load}>Try loading films again</button></div> : 'Preparing the screen…'}</div>}
+      {film ? <><div className="feature-image" key={film.id}><img src={art(film)} onError={event => fallback(event, film.backdrop_url)} alt="" /><div className="feature-shade" /></div><div className="wrap feature-inner"><div className="feature-copy"><span className="feature-index">NOW SHOWING</span><h2>{film.title}</h2><p>{film.genre} <b>·</b> {film.language} <b>·</b> {duration(film.duration_minutes)} <b>·</b> {film.rating}</p><button className="signal-button" onClick={() => onMovie(film.id)}>Book tickets <ArrowRight size={19} /></button></div></div></> : <div className="wrap feature-loading">{error ? <div role="alert"><p>{error}</p><button className="button" onClick={load}>Try loading films again</button></div> : loaded ? 'No films are showing yet.' : 'Preparing the screen…'}</div>}
     </section>
     {movies.length > 0 && <div className="feature-selector wrap" role="group" aria-label="Choose featured film">{movies.map((movie, index) => <button key={movie.id} aria-current={featured === index ? 'true' : undefined} className={featured === index ? 'active' : ''} onClick={() => setFeatured(index)}><img src={art(movie)} alt="" onError={event => fallback(event, movie.backdrop_url)} /><span><strong>{movie.title}</strong><small>{movie.genre}</small></span></button>)}</div>}</div>
     <section className="film-list wrap" id="films"><div className="film-list-intro"><h2>On the screen<span>.</span></h2><p>Find a story, then find your seat.</p></div><div className="film-tools"><div className="genre-controls" role="group" aria-label="Filter by genre">{genres.map(value => <button key={value} className={genre === value ? 'active' : ''} aria-pressed={genre === value} onClick={() => setGenre(value)}>{value}</button>)}</div><label className="film-search"><Search size={18} /><span className="sr-only">Search films</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search films" /></label></div>{error && <p className="error-line" role="alert">{error}</p>}{movies.length > 0 && !visible.length && <p className="empty-state">No films found. Try another search.</p>}<div className="editorial-grid">{visible.map((movie, index) => <button key={movie.id} className="editorial-film" onClick={() => onMovie(movie.id)}><span className="editorial-poster"><img src={poster(movie)} onError={event => fallback(event, movie.poster_url)} alt="" loading={index > 1 ? 'lazy' : 'eager'} /><span className="poster-number">{String(index + 1).padStart(2, '0')}</span></span><span className="editorial-film-line"><span>{movie.genre} / {movie.language} / {duration(movie.duration_minutes)}</span><span>{movie.rating}</span></span><strong>{movie.title}</strong><span className="next-show">{next[movie.id] ? `Next · ${shortDay(next[movie.id]!.starts_at)} ${time(next[movie.id]!.starts_at)} · ${money(next[movie.id]!.price_paise)}` : 'View film & showtimes'}<ArrowRight size={17} /></span></button>)}</div></section>

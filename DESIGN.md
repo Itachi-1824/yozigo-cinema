@@ -1,6 +1,6 @@
 # FRAME product UI
 
-FRAME is a compact sample cinema booking product. The interface uses Manrope, a light neutral canvas (`#F8F9FA`), white surfaces, restrained borders, and `#1D56A5` for actions. Movie art belongs on posters and the film-detail backdrop only.
+FRAME is a compact sample cinema booking product. The interface uses Manrope, a warm ivory canvas (`#FFFAF2`), white surfaces, restrained warm borders, and cinema red (`#B9233B`) for primary actions and selection. Green, amber, and slate remain reserved for seat availability, holds, and booked states. Movie art belongs on posters and the film-detail backdrop only.
 
 Desktop content is capped at 1200px with 24px gutters; the header is 68px. The home screen opens directly to Now showing, filters, search, and a four-column poster grid. At tablet and mobile widths it uses two poster columns with 16px gutters.
 

@@ -11,6 +11,7 @@ import { AuthPage } from "./AuthPage";
 import {
   ArrowLeft,
   ArrowRight,
+  Check,
   Clock3,
   Film,
   LogOut,
@@ -633,7 +634,6 @@ function BootScreen({ error, retry }: { error: string; retry: () => void }) {
 function Gate({ title, onOpen }: { title: string; onOpen: () => void }) {
   return (
     <section className="gate wrap">
-      <div className="eyebrow">FRAME MEMBERSHIP</div>
       <h1>
         {title}
         <span className="coral">.</span>
@@ -834,7 +834,6 @@ function SeatsPage({
           </a>
           <div className="booking-head-row">
             <div>
-              <span className="eyebrow light">CHOOSE YOUR PLACE</span>
               <h1>
                 {movie.title}
                 <span className="coral">.</span>
@@ -854,7 +853,6 @@ function SeatsPage({
         <div className="seat-panel">
           <div className="seat-panel-top">
             <div>
-              <span className="eyebrow">THE AUDITORIUM</span>
               <h2>Pick your seats</h2>
             </div>
             <span className="seat-count">{show.available_seats} available</span>
@@ -944,6 +942,8 @@ function SeatsPage({
                           <X size={15} aria-hidden />
                         ) : status === "held" ? (
                           <Minus size={15} aria-hidden />
+                        ) : isSelected ? (
+                          <Check size={15} aria-hidden />
                         ) : (
                           index + 1
                         )}
@@ -961,7 +961,6 @@ function SeatsPage({
           </p>
         </div>
         <aside className="summary-panel">
-          <span className="eyebrow light">YOUR EVENING</span>
           <h2>Booking summary</h2>
           <div className="summary-film">
             <img
@@ -1137,7 +1136,6 @@ function BookingsPage({
       </a>
       <div className="section-top">
         <div>
-          <span className="eyebrow">YOUR CINEMA DIARY</span>
           <h1>
             My bookings<span className="coral">.</span>
           </h1>
@@ -1516,7 +1514,6 @@ function AdminPage({ csrf }: { csrf: string }) {
     <section className="admin-page wrap page-pad">
       <div className="admin-heading">
         <div>
-          <span className="eyebrow">BEHIND THE CURTAIN</span>
           <h1>
             Studio admin<span className="coral">.</span>
           </h1>
@@ -1687,7 +1684,6 @@ function AdminPage({ csrf }: { csrf: string }) {
             >
               <X size={20} />
             </button>
-            <span className="eyebrow">NEW SCREENING</span>
             <h2 id="show-form-title">Add a show</h2>
             <form onSubmit={saveShow}>
               <label>
@@ -1745,7 +1741,6 @@ function AdminPage({ csrf }: { csrf: string }) {
             >
               <X size={20} />
             </button>
-            <span className="eyebrow">FILM LIBRARY</span>
             <h2 id="movie-form-title">
               {editing ? "Edit film" : "Add a film"}
             </h2>
@@ -1936,7 +1931,6 @@ function AdminPage({ csrf }: { csrf: string }) {
             >
               <X size={20} />
             </button>
-            <span className="eyebrow">SHOW OVERVIEW</span>
             <h2 id="inspect-title">
               {shows.find((show) => show.id === inspected)?.movie_title}
             </h2>
@@ -1991,6 +1985,9 @@ function AdminPage({ csrf }: { csrf: string }) {
                     <span>
                       {booking.seats.join(", ")} · {money(booking.amount_paise)}{" "}
                       · {booking.status}
+                    </span>
+                    <span>
+                      Booking ID: {booking.id} · Booked: {day(booking.created_at)} {clock(booking.created_at)}
                     </span>
                   </div>
                 ))}

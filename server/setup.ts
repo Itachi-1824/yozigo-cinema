@@ -50,64 +50,24 @@ try {
         "INSERT INTO users(name,email,password_hash,role) VALUES($1,$2,$3,$4)",
         [name, email, hash(password), role],
       );
-    const films = [
-      [
-        "Beyond the Blue",
-        "An astronaut hears a signal from an ocean moon.",
-        "English",
-        118,
-        "UA",
-        "orbit",
-        "Science fiction",
-      ],
-      [
-        "Monsoon Letters",
-        "Two old friends reconnect through rain-soaked letters.",
-        "Hindi",
-        124,
-        "U",
-        "monsoon",
-        "Drama",
-      ],
-      [
-        "Neon City",
-        "A courier races across a sleepless future.",
-        "English",
-        106,
-        "A",
-        "neon",
-        "Thriller",
-      ],
-      [
-        "The Last Light",
-        "A family protects a lighthouse through one final storm.",
-        "Malayalam",
-        112,
-        "U",
-        "last-light",
-        "Family",
-      ],
-    ];
-    for (const [
-      title,
-      description,
-      language,
-      duration,
-      rating,
-      asset,
-      genre,
-    ] of films)
+    const films = JSON.parse(
+      await readFile(join(import.meta.dirname, "catalogue.json"), "utf8"),
+    );
+    for (const film of films)
       await client.query(
-        "INSERT INTO movies(title,description,language,duration_minutes,rating,poster_url,backdrop_url,genre) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+        "INSERT INTO movies(title,description,language,duration_minutes,rating,poster_url,backdrop_url,genre,release_date,certification,credits) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
         [
-          title,
-          description,
-          language,
-          duration,
-          rating,
-          `/posters/${asset}.svg`,
-          `/backdrops/${asset}.svg`,
-          genre,
+          film.title,
+          film.description,
+          film.language,
+          film.duration_minutes,
+          film.rating,
+          `/posters/${film.asset}.svg`,
+          `/backdrops/${film.asset}.svg`,
+          film.genre,
+          film.release_date,
+          film.certification,
+          JSON.stringify(film.credits),
         ],
       );
     const { rows: movies } = await client.query<{

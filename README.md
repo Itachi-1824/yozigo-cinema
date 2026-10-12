@@ -1,6 +1,6 @@
 # FRAME
 
-An editorial cinema booking app. Browse four fictional films, pick a screening, reserve up to six seats, and confirm a simulated payment. Built with Astro, React, TypeScript, Fastify and PostgreSQL.
+A cinema booking app with a sample film catalogue. Compare films, view dated screenings, reserve up to six seats, and confirm a simulated payment. Built with Astro, React, TypeScript, Fastify and PostgreSQL.
 
 ## Run with Docker
 
@@ -54,7 +54,9 @@ These are intentional local demo credentials. Public hosting requires replacing 
 9. Per-show occupancy, confirmed revenue, customer booking list and seat map.
 10. Live seats through three-second polling, with visible connection errors and hold recovery on refresh.
 
-The interface includes an opt-in sound toggle, reduced-motion support, keyboard focus management, and a horizontally scrollable mobile seat map that preserves full-size targets. Film imagery and fonts are local assets. The fictional film artwork is illustrative; ratings are age classifications, not audience scores.
+The interface includes an opt-in sound toggle, reduced-motion support, keyboard focus management, and a horizontally scrollable mobile seat map that preserves full-size targets. Film imagery and fonts are local assets. Film stories, release dates, cast/crew and artwork are fictional sample content in `server/catalogue.json`; certifications are age classifications, not audience scores. Booking availability, holds and history use the working database.
+
+The interface is informed by direct observations of BookMyShow, District and Fandango. [Screen study](docs/PLATFORM-RESEARCH.md) and [booking behavior sources](docs/BOOKING-BEHAVIOR-RESEARCH.md) distinguish observed screens, documented policies and design decisions.
 
 ## Key decisions
 

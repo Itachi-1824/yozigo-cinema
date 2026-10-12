@@ -19,8 +19,17 @@ CREATE TABLE IF NOT EXISTS movies (
   title TEXT NOT NULL, description TEXT NOT NULL, language TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL CHECK (duration_minutes BETWEEN 1 AND 600),
   rating TEXT NOT NULL CHECK (rating IN ('U','UA','A')),
-  poster_url TEXT NOT NULL, backdrop_url TEXT NOT NULL, genre TEXT NOT NULL
+  poster_url TEXT NOT NULL, backdrop_url TEXT NOT NULL, genre TEXT NOT NULL,
+  release_date TEXT NOT NULL DEFAULT '', certification TEXT NOT NULL DEFAULT '',
+  credits JSONB NOT NULL DEFAULT '[]'::jsonb, gallery JSONB NOT NULL DEFAULT '[]'::jsonb,
+  trailer_url TEXT NOT NULL DEFAULT '', source_url TEXT NOT NULL DEFAULT ''
 );
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS release_date TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS certification TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS credits JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS gallery JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS trailer_url TEXT NOT NULL DEFAULT '';
+ALTER TABLE movies ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS shows (
   id BIGSERIAL PRIMARY KEY,
   movie_id BIGINT NOT NULL REFERENCES movies(id) ON DELETE CASCADE,

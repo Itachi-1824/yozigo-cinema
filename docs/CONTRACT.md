@@ -4,7 +4,7 @@ All routes start `/api`. JSON uses snake_case. Integer money is INR paise. Dates
 
 Types:
 - User: `{id:number,name:string,email:string,role:'customer'|'admin'}`
-- Movie: `{id:number,title:string,description:string,language:string,duration_minutes:number,rating:'U'|'UA'|'A',poster_url:string,backdrop_url:string,genre:string}`
+- Movie: `{id:number,title:string,description:string,language:string,duration_minutes:number,rating:'U'|'UA'|'A',poster_url:string,backdrop_url:string,genre:string,release_date:string,certification:string,credits:{name:string,role:string,image_url:string}[],gallery:string[],trailer_url:string,source_url:string}`. Optional metadata defaults to empty strings/arrays. Release date is a valid calendar date in YYYY-MM-DD; credits and gallery are bounded. `rating` is age classification; `certification` may provide the more detailed label. Trailers accept verified HTTPS YouTube watch links; empty metadata is not rendered. Admin updates preserve omitted optional metadata.
 - Show: `{id:number,movie_id:number,starts_at:string,ends_at:string,price_paise:number,available_seats:number}`
 - Seat: `{label:string,state:'available'|'held'|'booked',mine:boolean}`
 - Hold: `{id:string,show_id:number,seats:string[],expires_at:string,amount_paise:number}`

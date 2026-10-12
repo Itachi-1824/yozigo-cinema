@@ -118,6 +118,101 @@ test("auth gates, ownership and admin role", async () => {
   );
 });
 
+test("movie metadata is validated, returned, and retained by metadata-omitting updates", async () => {
+  const seeded = (await call("GET", "/api/movies/1", undefined, false)).body;
+  const seat = (await call("GET", "/api/shows/1")).body.movie;
+  for (const movie of [seeded.movie, seat])
+    for (const key of [
+      "release_date",
+      "certification",
+      "credits",
+      "gallery",
+      "trailer_url",
+      "source_url",
+    ])
+      assert.ok(key in movie);
+
+  const movie = {
+    title: "Metadata Test Film",
+    description: "A film used to verify optional metadata.",
+    language: "English",
+    duration_minutes: 97,
+    rating: "U",
+    poster_url: "/posters/orbit.svg",
+    backdrop_url: "/backdrops/orbit.svg",
+    genre: "Drama",
+    release_date: "2026-10-13",
+    certification: "PG-13",
+    credits: [
+      { name: "Ava Example", role: "Director", image_url: "/avatars/ava.jpg" },
+    ],
+    gallery: ["https://images.example.test/still.jpg"],
+    trailer_url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    source_url: "https://example.test/metadata",
+  };
+  for (const invalid of [
+    { release_date: "2026-02-29" },
+    { credits: [{ name: "", role: "Director", image_url: "" }] },
+    { gallery: ["javascript:alert(1)"] },
+    { trailer_url: "javascript:alert(1)" },
+    { source_url: "http://example.test/metadata" },
+  ])
+    assert.equal(
+      (
+        await call(
+          "POST",
+          "/api/admin/movies",
+          { ...movie, ...invalid },
+          true,
+          false,
+          true,
+        )
+      ).status,
+      400,
+    );
+
+  const created = await call(
+    "POST",
+    "/api/admin/movies",
+    movie,
+    true,
+    false,
+    true,
+  );
+  assert.equal(created.status, 201);
+  const id = created.body.id;
+  const publicMovie = (await call("GET", `/api/movies/${id}`, undefined, false))
+    .body.movie;
+  assert.deepEqual(publicMovie.credits, movie.credits);
+  assert.deepEqual(publicMovie.gallery, movie.gallery);
+  assert.equal(publicMovie.trailer_url, movie.trailer_url);
+  const {
+    release_date,
+    certification,
+    credits,
+    gallery,
+    trailer_url,
+    source_url,
+    ...withoutMetadata
+  } = movie;
+  const updated = await call(
+    "PATCH",
+    `/api/admin/movies/${id}`,
+    { ...withoutMetadata, title: "Metadata Test Film Revised" },
+    true,
+    false,
+    true,
+  );
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.title, "Metadata Test Film Revised");
+  assert.equal(updated.body.release_date, release_date);
+  assert.equal(updated.body.certification, certification);
+  assert.deepEqual(updated.body.credits, credits);
+  assert.deepEqual(updated.body.gallery, gallery);
+  assert.equal(updated.body.trailer_url, trailer_url);
+  assert.equal(updated.body.source_url, source_url);
+});
+
 test("racing clients receive one owner and exact conflict", async () => {
   const [mine, rival] = await Promise.all([
     call("POST", "/api/shows/1/holds", { seats: ["A1", "A2"] }),

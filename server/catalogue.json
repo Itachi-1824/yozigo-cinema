@@ -1,0 +1,70 @@
+[
+  {
+    "title": "Beyond the Blue",
+    "description": "When a distant ocean moon begins transmitting a signal, mission scientist Leena Rao is sent to find its source. What she discovers challenges everything her crew believes about life beyond Earth.\n\nA story of exploration, isolation and the difficult choices that come with being the first to step into the unknown.",
+    "language": "English",
+    "duration_minutes": 118,
+    "rating": "UA",
+    "certification": "UA13+",
+    "genre": "Science fiction",
+    "asset": "orbit",
+    "release_date": "2026-10-09",
+    "credits": [
+      { "name": "Mira Sen", "role": "Leena Rao", "image_url": "" },
+      { "name": "Arjun Mehta", "role": "Commander Ellis", "image_url": "" },
+      { "name": "Nadia Cole", "role": "Dr. Avery", "image_url": "" },
+      { "name": "Rohan Das", "role": "Director", "image_url": "" }
+    ]
+  },
+  {
+    "title": "Monsoon Letters",
+    "description": "A misplaced letter brings two childhood friends back to the same railway station after fifteen years apart. Over one monsoon season, they revisit the promises they made and the lives they chose.\n\nSet among crowded platforms and quiet neighbourhoods, this intimate drama follows the small moments that can change a relationship.",
+    "language": "Hindi",
+    "duration_minutes": 124,
+    "rating": "U",
+    "certification": "U",
+    "genre": "Drama",
+    "asset": "monsoon",
+    "release_date": "2026-10-02",
+    "credits": [
+      { "name": "Asha Kapoor", "role": "Ananya", "image_url": "" },
+      { "name": "Kabir Sethi", "role": "Dev", "image_url": "" },
+      { "name": "Leela Nair", "role": "Mrs. Fernandes", "image_url": "" },
+      { "name": "Sana Mir", "role": "Director", "image_url": "" }
+    ]
+  },
+  {
+    "title": "Neon City",
+    "description": "A night courier accepts one last delivery across a city that never sleeps. When the package connects her to a missing person, a routine job becomes a race to uncover who is controlling the streets.\n\nAn urban thriller about trust, surveillance and finding a way out when every route leads deeper into danger.",
+    "language": "English",
+    "duration_minutes": 106,
+    "rating": "A",
+    "certification": "A · 18+",
+    "genre": "Thriller",
+    "asset": "neon",
+    "release_date": "2026-10-09",
+    "credits": [
+      { "name": "Zara Quinn", "role": "Alex", "image_url": "" },
+      { "name": "Theo Marsh", "role": "Julian", "image_url": "" },
+      { "name": "Evan Reed", "role": "The Handler", "image_url": "" },
+      { "name": "Ishan Roy", "role": "Director", "image_url": "" }
+    ]
+  },
+  {
+    "title": "The Last Light",
+    "description": "As a storm approaches the coast, a lighthouse keeper and his family prepare to leave the home they have known for generations. A stranded fishing boat gives them one final reason to keep the light burning.\n\nA family adventure about courage, community and the places that become part of who we are.",
+    "language": "Malayalam",
+    "duration_minutes": 112,
+    "rating": "U",
+    "certification": "U",
+    "genre": "Family",
+    "asset": "last-light",
+    "release_date": "2026-09-25",
+    "credits": [
+      { "name": "Dev Menon", "role": "Joseph", "image_url": "" },
+      { "name": "Anika Varma", "role": "Meera", "image_url": "" },
+      { "name": "Kiran Babu", "role": "Noah", "image_url": "" },
+      { "name": "Tara Joseph", "role": "Director", "image_url": "" }
+    ]
+  }
+]

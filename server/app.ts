@@ -179,11 +179,103 @@ export function buildApp(connectionString = databaseUrl) {
       )
     )
       return null;
-    return body;
+    const metadata = movieMetadata(body);
+    return metadata ? { ...body, ...metadata } : null;
+  }
+  const has = (body: any, key: string) =>
+    Object.prototype.hasOwnProperty.call(body, key);
+  const validImageUrl = (value: unknown) => {
+    if (typeof value !== "string" || value.length > 2048) return false;
+    if (/^\/(?!\/)/.test(value)) return true;
+    try {
+      const url = new URL(value);
+      return (
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        !!url.hostname
+      );
+    } catch {
+      return false;
+    }
+  };
+  const validDate = (value: unknown) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
+      return false;
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return (
+      !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+    );
+  };
+  const validHttpsUrl = (value: unknown) => {
+    if (typeof value !== "string") return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" && !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  };
+  const validTrailerUrl = (value: unknown) => {
+    if (!validHttpsUrl(value)) return false;
+    const url = new URL(value as string);
+    const id = /^[\w-]{11}$/;
+    return (
+      ((url.hostname === "youtube.com" || url.hostname === "www.youtube.com") &&
+        url.pathname === "/watch" &&
+        id.test(url.searchParams.get("v") ?? "")) ||
+      (url.hostname === "youtu.be" &&
+        id.test(url.pathname.slice(1)) &&
+        url.pathname.length === 12)
+    );
+  };
+  function movieMetadata(body: any, existing?: any) {
+    const value = (key: string, fallback: any) =>
+      has(body, key) ? body[key] : fallback;
+    const release_date = value("release_date", existing?.release_date ?? "");
+    const certification = value("certification", existing?.certification ?? "");
+    const credits = value("credits", existing?.credits ?? []);
+    const gallery = value("gallery", existing?.gallery ?? []);
+    const trailer_url = value("trailer_url", existing?.trailer_url ?? "");
+    const source_url = value("source_url", existing?.source_url ?? "");
+    if (
+      (release_date !== "" && !validDate(release_date)) ||
+      typeof certification !== "string" ||
+      (certification !== "" &&
+        (certification.trim().length === 0 || certification.length > 24)) ||
+      !Array.isArray(credits) ||
+      credits.length > 24 ||
+      credits.some(
+        (credit) =>
+          !credit ||
+          typeof credit !== "object" ||
+          Array.isArray(credit) ||
+          typeof credit.name !== "string" ||
+          credit.name.trim().length < 1 ||
+          credit.name.length > 100 ||
+          typeof credit.role !== "string" ||
+          credit.role.trim().length < 1 ||
+          credit.role.length > 80 ||
+          typeof credit.image_url !== "string" ||
+          (credit.image_url !== "" && !validImageUrl(credit.image_url)),
+      ) ||
+      !Array.isArray(gallery) ||
+      gallery.length > 8 ||
+      gallery.some((image) => !validImageUrl(image)) ||
+      (trailer_url !== "" && !validTrailerUrl(trailer_url)) ||
+      (source_url !== "" && !validHttpsUrl(source_url))
+    )
+      return null;
+    return {
+      release_date,
+      certification,
+      credits,
+      gallery,
+      trailer_url,
+      source_url,
+    };
   }
   async function showData(id: number, userId?: number) {
     const result = await pool.query(
-      `SELECT s.id,s.movie_id,s.starts_at,s.ends_at,s.price_paise,m.title,m.description,m.language,m.duration_minutes,m.rating,m.poster_url,m.backdrop_url,m.genre,
+      `SELECT s.id,s.movie_id,s.starts_at,s.ends_at,s.price_paise,m.title,m.description,m.language,m.duration_minutes,m.rating,m.poster_url,m.backdrop_url,m.genre,m.release_date,m.certification,m.credits,m.gallery,m.trailer_url,m.source_url,
       80-(SELECT count(*) FROM booking_seats bs JOIN bookings b ON b.id=bs.booking_id WHERE bs.show_id=s.id AND bs.released_at IS NULL AND b.status='confirmed')-(SELECT count(*) FROM hold_seats hs JOIN holds h ON h.id=hs.hold_id WHERE h.show_id=s.id AND h.invalidated_at IS NULL AND h.booking_id IS NULL AND h.expires_at>now()) AS available_seats
       FROM shows s JOIN movies m ON m.id=s.movie_id WHERE s.id=$1`,
       [id],
@@ -225,6 +317,12 @@ export function buildApp(connectionString = databaseUrl) {
       poster_url: row.poster_url,
       backdrop_url: row.backdrop_url,
       genre: row.genre,
+      release_date: row.release_date,
+      certification: row.certification,
+      credits: row.credits,
+      gallery: row.gallery,
+      trailer_url: row.trailer_url,
+      source_url: row.source_url,
     };
     return {
       show,
@@ -639,7 +737,7 @@ export function buildApp(connectionString = databaseUrl) {
     const b = movieInput(request.body);
     if (!b) return fail(reply, 400, "Invalid movie");
     const { rows } = await pool.query(
-      "INSERT INTO movies(title,description,language,duration_minutes,rating,poster_url,backdrop_url,genre) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
+      "INSERT INTO movies(title,description,language,duration_minutes,rating,poster_url,backdrop_url,genre,release_date,certification,credits,gallery,trailer_url,source_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *",
       [
         b.title,
         b.description,
@@ -649,6 +747,12 @@ export function buildApp(connectionString = databaseUrl) {
         b.poster_url,
         b.backdrop_url,
         b.genre,
+        b.release_date,
+        b.certification,
+        JSON.stringify(b.credits),
+        JSON.stringify(b.gallery),
+        b.trailer_url,
+        b.source_url,
       ],
     );
     reply.code(201);
@@ -656,7 +760,8 @@ export function buildApp(connectionString = databaseUrl) {
   });
   app.patch("/api/admin/movies/:id", async (request: AuthRequest, reply) => {
     if (!(await admin(request, reply, true))) return;
-    const b = movieInput(request.body);
+    const input = request.body;
+    const b = movieInput(input);
     const id = Number((request.params as any).id);
     if (!b) return fail(reply, 400, "Invalid movie");
     const c = await pool.connect();
@@ -669,6 +774,11 @@ export function buildApp(connectionString = databaseUrl) {
       if (!existing.rows[0]) {
         await c.query("ROLLBACK");
         return fail(reply, 404, "Movie not found");
+      }
+      const metadata = movieMetadata(input, existing.rows[0]);
+      if (!metadata) {
+        await c.query("ROLLBACK");
+        return fail(reply, 400, "Invalid movie");
       }
       if (existing.rows[0].duration_minutes !== b.duration_minutes) {
         const overlaps = await c.query(
@@ -689,7 +799,7 @@ export function buildApp(connectionString = databaseUrl) {
         );
       }
       const { rows } = await c.query(
-        "UPDATE movies SET title=$2,description=$3,language=$4,duration_minutes=$5,rating=$6,poster_url=$7,backdrop_url=$8,genre=$9 WHERE id=$1 RETURNING *",
+        "UPDATE movies SET title=$2,description=$3,language=$4,duration_minutes=$5,rating=$6,poster_url=$7,backdrop_url=$8,genre=$9,release_date=$10,certification=$11,credits=$12,gallery=$13,trailer_url=$14,source_url=$15 WHERE id=$1 RETURNING *",
         [
           id,
           b.title,
@@ -700,6 +810,12 @@ export function buildApp(connectionString = databaseUrl) {
           b.poster_url,
           b.backdrop_url,
           b.genre,
+          metadata.release_date,
+          metadata.certification,
+          JSON.stringify(metadata.credits),
+          JSON.stringify(metadata.gallery),
+          metadata.trailer_url,
+          metadata.source_url,
         ],
       );
       await c.query("COMMIT");

@@ -40,8 +40,14 @@ async function createRaceShow() {
     assert(film, "Beyond the Blue is unavailable for the race show");
     const shows = await api.get("/api/admin/shows");
     assert(shows.status() === 200, "list screenings failed");
-    const starts = new Date(Math.max(Date.now() + 730 * 86400000, ...(await shows.json()).map(show => new Date(show.ends_at).getTime())) + 86400000);
-    starts.setUTCHours(14, 0, 0, 0);
+    let starts = new Date(Date.now() + 36 * 3600000);
+    starts.setUTCHours(3, 30, 0, 0);
+    for (const screening of await shows.json()) {
+      if (starts.getTime() < new Date(screening.ends_at).getTime() &&
+          starts.getTime() + film.duration_minutes * 60000 > new Date(screening.starts_at).getTime()) {
+        starts = new Date(new Date(screening.ends_at).getTime() + 10 * 60000);
+      }
+    }
     const show = await api.post("/api/admin/shows", {
       headers: { "x-csrf-token": csrf },
       data: {

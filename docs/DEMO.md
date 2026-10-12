@@ -2,6 +2,10 @@
 
 Target duration: 3–5 minutes. Show actual browser interaction, including a failed payment and two separate sessions competing for one seat. Use a private/incognito window for the second customer; two ordinary tabs share the same login.
 
+With the local app running, `node scripts/record-demo.mjs` records the customer journey, two independent customers competing for one seat, and admin film management and overlap validation. It requires the installed Playwright Chromium browser and `ffmpeg`/`ffprobe` on PATH. Set `FRAME_DEMO_URL` to use another local base URL.
+
+The recorder creates sample customer accounts, a future screening, and demo booking history in the running database. Temporary films are deleted after their CRUD demonstration. Raw recordings, captions, and the verified 1080p `frame-demo.mp4` are saved under the ignored `artifacts/demo/` directory. Rendering checks the 3–5 minute duration and video format before reporting success.
+
 | Time      | Show                                                                                                                                                                                                                                                                    |
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0:00–0:30 | Home, language/genre/search, film synopsis and credits, date and showtime                                                                                                                                                                                               |

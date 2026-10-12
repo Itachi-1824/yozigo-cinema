@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const children = [
   spawn(process.execPath, ['--env-file-if-exists=.env', require.resolve('tsx/cli'), 'watch', 'server/index.ts'], { stdio: 'inherit' }),
-  spawn(process.execPath, [fileURLToPath(new URL('../node_modules/astro/astro.js', import.meta.url)), 'dev', '--host', '127.0.0.1'], { stdio: 'inherit' }),
+  spawn(process.execPath, [fileURLToPath(new URL('../node_modules/astro/bin/astro.mjs', import.meta.url)), 'dev', '--host', '127.0.0.1'], { stdio: 'inherit' }),
 ];
 let closing = false;
 function close(code = 0) {

@@ -756,7 +756,12 @@ export function buildApp(connectionString = databaseUrl) {
     const c = await pool.connect();
     try {
       await c.query("BEGIN");
-      const movie = (await c.query("SELECT duration_minutes FROM movies WHERE id=$1 FOR SHARE", [b.movie_id])).rows[0];
+      const movie = (
+        await c.query(
+          "SELECT duration_minutes FROM movies WHERE id=$1 FOR SHARE",
+          [b.movie_id],
+        )
+      ).rows[0];
       if (!movie) {
         await c.query("ROLLBACK");
         return fail(reply, 404, "Movie not found");
@@ -788,7 +793,8 @@ export function buildApp(connectionString = databaseUrl) {
       };
     } catch (e: any) {
       await c.query("ROLLBACK");
-      if (e.code === "23P01") return fail(reply, 409, "Show overlaps another show");
+      if (e.code === "23P01")
+        return fail(reply, 409, "Show overlaps another show");
       throw e;
     } finally {
       c.release();

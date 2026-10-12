@@ -1,12 +1,41 @@
 {
-  "name": "frame-cinema", "version": "1.0.0", "private": true, "type": "module",
-  "engines": {"node": ">=22.19.0"},
-  "scripts": {
-    "dev": "node scripts/dev.mjs", "dev:web": "astro dev --host 127.0.0.1", "dev:api": "tsx watch server/index.ts",
-    "build": "astro build", "check": "astro check && tsc -p server/tsconfig.json --noEmit",
-    "test": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 server/api.test.ts", "test:e2e": "playwright test",
-    "db:setup": "node --env-file-if-exists=.env --import tsx server/setup.ts", "start:api": "node --env-file-if-exists=.env --import tsx server/index.ts"
+  "name": "frame-cinema",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
   },
-  "dependencies": {"astro":"7.3.8","@astrojs/react":"7.0.1","react":"19.3.0","react-dom":"19.3.0","fastify":"5.12.5","@fastify/cookie":"^11.0.2","@fastify/rate-limit":"^10.3.0","pg":"8.23.1","lucide-react":"^0.468.0"},
-  "devDependencies": {"@astrojs/check":"^0.9.4","@types/react":"^19.0.0","@types/react-dom":"^19.0.0","@types/node":"^24.0.0","@types/pg":"^8.15.0","typescript":"^5.9.0","tsx":"^4.20.0","@playwright/test":"^1.56.0"}
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "astro dev --host 127.0.0.1",
+    "dev:api": "tsx watch server/index.ts",
+    "build": "astro build",
+    "check": "astro check && tsc -p server/tsconfig.json --noEmit",
+    "test": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 server/api.test.ts",
+    "test:e2e": "playwright test",
+    "db:setup": "node --env-file-if-exists=.env --import tsx server/setup.ts",
+    "start:api": "node --env-file-if-exists=.env --import tsx server/index.ts"
+  },
+  "dependencies": {
+    "astro": "7.3.8",
+    "@astrojs/react": "7.0.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "fastify": "5.12.5",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/rate-limit": "^10.3.0",
+    "pg": "8.23.1",
+    "lucide-react": "^0.468.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "typescript": "^5.9.0",
+    "tsx": "^4.20.0",
+    "@playwright/test": "^1.56.0"
+  }
 }

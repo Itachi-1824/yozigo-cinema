@@ -360,6 +360,11 @@ test("two sessions race one seat, live states update, and admin sees the booking
     }).format(new Date(stored.created_at));
     await expect(entry).toContainText(bookedTime);
     await expect(adminPage.locator(".mini-seat-map .mini-seat")).toHaveCount(80);
+    const bookedMarker = adminPage.locator(`.mini-seat[title="${seat}: booked"]`);
+    await expect(bookedMarker).toBeVisible();
+    await expect(bookedMarker.locator("svg")).toBeVisible();
+    expect(await bookedMarker.evaluate(node => getComputedStyle(node).backgroundColor))
+      .not.toBe("rgba(0, 0, 0, 0)");
     await winner.goto(`/#ticket/${bookingId}`);
     winner.once("dialog", dialog => dialog.accept());
     await winner.getByRole("button", { name: "Cancel this booking" }).click();

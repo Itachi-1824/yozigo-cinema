@@ -1188,6 +1188,13 @@ textarea:focus-visible,
   max-height: 90vh;
   overflow: auto;
 }
+.inspector-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 16px 0;
+  font-size: 12px;
+}
 .mini-seat-map {
   display: grid;
   gap: 4px;
@@ -1195,12 +1202,31 @@ textarea:focus-visible,
 }
 .mini-seat-map > div {
   display: grid;
-  grid-template-columns: repeat(10, 12px);
+  grid-template-columns: 16px repeat(10, 14px);
   gap: 3px;
 }
 .mini-seat {
-  height: 12px;
+  height: 14px;
   border-radius: 2px;
+  display: grid;
+  place-items: center;
+  background: var(--available-soft);
+  border: 1px solid var(--available);
+}
+.mini-seat.held {
+  background: var(--held-soft);
+  border-color: var(--held);
+  color: var(--held);
+}
+.mini-seat.booked {
+  background: var(--booked);
+  border-color: var(--booked);
+  color: var(--surface);
+}
+.mini-row-label {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
 }
 .inspector-bookings > div {
   padding: 8px 0;

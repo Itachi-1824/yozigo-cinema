@@ -1957,8 +1957,15 @@ function AdminPage({ csrf }: { csrf: string }) {
                   </span>
                 </div>
                 <div className="mini-seat-map">
+                  <div aria-hidden="true">
+                    <span />
+                    {Array.from({ length: 10 }, (_, index) => (
+                      <span className="mini-row-label" key={index}>{index + 1}</span>
+                    ))}
+                  </div>
                   {"ABCDEFGH".split("").map((row) => (
                     <div key={row}>
+                      <span className="mini-row-label">{row}</span>
                       {Array.from({ length: 10 }, (_, index) => {
                         const seat = seatData.seats.find(
                           (s) => s.label === `${row}${index + 1}`,
@@ -1968,7 +1975,10 @@ function AdminPage({ csrf }: { csrf: string }) {
                             key={index}
                             className={`mini-seat ${seat?.state}`}
                             title={`${row}${index + 1}: ${seat?.state}`}
-                          />
+                          >
+                            {seat?.state === "booked" ? <X size={10} aria-hidden /> :
+                              seat?.state === "held" ? <Minus size={10} aria-hidden /> : null}
+                          </span>
                         );
                       })}
                     </div>

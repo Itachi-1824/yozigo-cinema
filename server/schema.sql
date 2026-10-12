@@ -61,8 +61,12 @@ CREATE TABLE IF NOT EXISTS booking_seats (
   seat_label TEXT NOT NULL CHECK (seat_label ~ '^[A-H](10|[1-9])$'),
   released_at TIMESTAMPTZ,
   PRIMARY KEY (booking_id, seat_label),
-  FOREIGN KEY (booking_id, show_id) REFERENCES bookings(id, show_id) ON DELETE CASCADE
+  CONSTRAINT booking_seats_booking_show_fk FOREIGN KEY (booking_id, show_id) REFERENCES bookings(id, show_id) ON DELETE CASCADE
 );
+DO $$ BEGIN
+  ALTER TABLE booking_seats ADD CONSTRAINT booking_seats_booking_show_fk FOREIGN KEY (booking_id, show_id) REFERENCES bookings(id, show_id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 ALTER TABLE booking_seats DROP CONSTRAINT IF EXISTS booking_seats_show_id_seat_label_released_at_key;
 CREATE UNIQUE INDEX IF NOT EXISTS booking_seats_active_unique ON booking_seats(show_id, seat_label) WHERE released_at IS NULL;
 CREATE INDEX IF NOT EXISTS holds_show_active ON holds(show_id, expires_at) WHERE invalidated_at IS NULL;

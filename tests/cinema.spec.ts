@@ -278,11 +278,12 @@ test("failed payment retains a hold, retry confirms it, exposes ticket and booki
   await expect(page.locator(".ticket-status")).toHaveText("BOOKING CANCELLED");
 });
 
-test("two browser sessions race the same seat and the loser sees its held state through polling", async ({
+test("two sessions race one seat, live states update, and admin sees the booking details", async ({
   browser,
 }) => {
   const one = await browser.newContext();
   const two = await browser.newContext();
+  const staff = await browser.newContext();
   const pageOne = await one.newPage();
   const pageTwo = await two.newPage();
   try {
@@ -336,9 +337,37 @@ test("two browser sessions race the same seat and the loser sees its held state 
     await expect(
       loser.getByRole("button", { name: `${seat}, on hold` }),
     ).toBeDisabled();
+    await winner.getByRole("button", { name: "Complete demo payment" }).click();
+    await expect(winner.getByText("See you at the movies.")).toBeVisible();
+    const bookingId = winner.url().split("/").at(-1)!;
+    const stored = await (
+      await winner.request.get(`/api/bookings/${bookingId}`)
+    ).json();
+    await expect(loser.getByRole("button", { name: `${seat}, booked` })).toBeDisabled();
+    const adminPage = await staff.newPage();
+    await login(adminPage, admin);
+    await adminPage.getByRole("link", { name: "Studio admin" }).click();
+    const showId = showUrl.split("/").at(-1)!;
+    await adminPage
+      .locator(`.admin-show[data-show-id="${showId}"]`)
+      .getByRole("button", { name: "View details" })
+      .click();
+    const entry = adminPage.locator(".inspector-bookings > div").filter({ hasText: bookingId });
+    await expect(entry).toContainText(seat);
+    await expect(entry).toContainText("Booked");
+    const bookedTime = new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit", hour12: true,
+    }).format(new Date(stored.created_at));
+    await expect(entry).toContainText(bookedTime);
+    await expect(adminPage.locator(".mini-seat-map .mini-seat")).toHaveCount(80);
+    await winner.goto(`/#ticket/${bookingId}`);
+    winner.once("dialog", dialog => dialog.accept());
+    await winner.getByRole("button", { name: "Cancel this booking" }).click();
+    await expect(winner.locator(".ticket-status")).toHaveText("BOOKING CANCELLED");
   } finally {
     await one.close();
     await two.close();
+    await staff.close();
   }
 });
 

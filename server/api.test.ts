@@ -276,3 +276,30 @@ test("admin rejects overlap and booked-show deletion", async () => {
     409,
   );
 });
+
+test("show creation waits for a concurrent duration edit and uses the committed value", async () => {
+  const editor = await app.pool.connect();
+  let creating: ReturnType<typeof call> | undefined;
+  try {
+    await editor.query("BEGIN");
+    const movie = (await editor.query("SELECT duration_minutes FROM movies WHERE id=1 FOR UPDATE")).rows[0];
+    const minutes = Number(movie.duration_minutes) + 1;
+    await editor.query("UPDATE movies SET duration_minutes=$1 WHERE id=1", [minutes]);
+    await editor.query("UPDATE shows SET ends_at=ends_at+interval '1 minute' WHERE movie_id=1");
+    creating = call("POST", "/api/admin/shows", { movie_id: 1, starts_at: new Date(Date.now() + 20 * 86400000).toISOString(), price_paise: 19950 }, true, false, true);
+    let blocked = false;
+    for (let tries = 0; tries < 100 && !blocked; tries++) {
+      blocked = (await app.pool.query("SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND pid<>pg_backend_pid()")).rowCount! > 0;
+      if (!blocked) await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.equal(blocked, true, "the competing show request must reach the database lock");
+    await editor.query("COMMIT");
+    const result = await creating;
+    assert.equal(result.status, 201);
+    assert.equal(new Date(result.body.ends_at).getTime() - new Date(result.body.starts_at).getTime(), minutes * 60000);
+  } finally {
+    await editor.query("ROLLBACK");
+    editor.release();
+    if (creating) await creating;
+  }
+});

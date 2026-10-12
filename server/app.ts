@@ -58,7 +58,7 @@ const publicUser = (row: any): User => ({
 });
 
 export function buildApp(connectionString = databaseUrl) {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: { level: "warn" } });
   const pool = new pg.Pool({ connectionString });
   app.decorate("pool", pool);
   app.register(cookie, { hook: "onRequest" });
@@ -753,14 +753,20 @@ export function buildApp(connectionString = databaseUrl) {
       start <= new Date()
     )
       return fail(reply, 400, "Invalid show");
-    const movie = (
-      await pool.query("SELECT duration_minutes FROM movies WHERE id=$1", [
-        b.movie_id,
-      ])
-    ).rows[0];
-    if (!movie) return fail(reply, 404, "Movie not found");
+    const c = await pool.connect();
     try {
-      const { rows } = await pool.query(
+      await c.query("BEGIN");
+      const movie = (await c.query("SELECT duration_minutes FROM movies WHERE id=$1 FOR SHARE", [b.movie_id])).rows[0];
+      if (!movie) {
+        await c.query("ROLLBACK");
+        return fail(reply, 404, "Movie not found");
+      }
+      const now = (await c.query("SELECT clock_timestamp() now")).rows[0].now;
+      if (start <= new Date(now)) {
+        await c.query("ROLLBACK");
+        return fail(reply, 400, "Show must start in the future");
+      }
+      const { rows } = await c.query(
         "INSERT INTO shows(movie_id,starts_at,ends_at,price_paise) VALUES($1,$2,$3,$4) RETURNING *",
         [
           b.movie_id,
@@ -769,6 +775,7 @@ export function buildApp(connectionString = databaseUrl) {
           b.price_paise,
         ],
       );
+      await c.query("COMMIT");
       reply.code(201);
       return {
         ...rows[0],
@@ -780,9 +787,11 @@ export function buildApp(connectionString = databaseUrl) {
         available_seats: 80,
       };
     } catch (e: any) {
-      return e.code === "23P01"
-        ? fail(reply, 409, "Show overlaps another show")
-        : fail(reply, 500, "Unable to create show");
+      await c.query("ROLLBACK");
+      if (e.code === "23P01") return fail(reply, 409, "Show overlaps another show");
+      throw e;
+    } finally {
+      c.release();
     }
   });
   app.delete("/api/admin/shows/:id", async (request: AuthRequest, reply) => {

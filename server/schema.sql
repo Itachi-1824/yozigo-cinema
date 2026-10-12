@@ -51,13 +51,19 @@ CREATE TABLE IF NOT EXISTS bookings (
   amount_paise INTEGER NOT NULL, status TEXT NOT NULL CHECK (status IN ('confirmed','cancelled')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(), cancelled_at TIMESTAMPTZ
 );
+DO $$ BEGIN
+  ALTER TABLE bookings ADD CONSTRAINT bookings_id_show_id_unique UNIQUE (id, show_id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 CREATE TABLE IF NOT EXISTS booking_seats (
-  booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  booking_id UUID NOT NULL,
   show_id BIGINT NOT NULL REFERENCES shows(id) ON DELETE RESTRICT,
   seat_label TEXT NOT NULL CHECK (seat_label ~ '^[A-H](10|[1-9])$'),
   released_at TIMESTAMPTZ,
   PRIMARY KEY (booking_id, seat_label),
-  UNIQUE NULLS NOT DISTINCT (show_id, seat_label, released_at)
+  FOREIGN KEY (booking_id, show_id) REFERENCES bookings(id, show_id) ON DELETE CASCADE
 );
+ALTER TABLE booking_seats DROP CONSTRAINT IF EXISTS booking_seats_show_id_seat_label_released_at_key;
+CREATE UNIQUE INDEX IF NOT EXISTS booking_seats_active_unique ON booking_seats(show_id, seat_label) WHERE released_at IS NULL;
 CREATE INDEX IF NOT EXISTS holds_show_active ON holds(show_id, expires_at) WHERE invalidated_at IS NULL;
 CREATE INDEX IF NOT EXISTS bookings_show ON bookings(show_id);

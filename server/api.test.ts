@@ -9,6 +9,13 @@ const url =
   process.env.TEST_DATABASE_URL ??
   "postgresql://frame:frame_local@127.0.0.1:54329/frame_test";
 const exec = promisify(execFile);
+const testDatabase = new URL(url);
+const productionUrl = process.env.DATABASE_URL;
+if (
+  !/(^|\/)frame_test$|_test$/i.test(testDatabase.pathname) ||
+  url === productionUrl
+)
+  throw new Error("TEST_DATABASE_URL must be an isolated *_test database");
 let app: ReturnType<typeof buildApp>;
 let csrf = "",
   rivalCsrf = "",
@@ -102,6 +109,52 @@ test("racing clients receive one owner and exact conflict", async () => {
   assert.deepEqual(loser.body.seats, ["A1", "A2"]);
 });
 
+test("holds replace their owner's seats and reject cross-user payment", async () => {
+  const first = await call("POST", "/api/shows/4/holds", { seats: ["D1"] });
+  const replacement = await call("POST", "/api/shows/4/holds", {
+    seats: ["D1", "D2"],
+  });
+  assert.equal(replacement.status, 201);
+  assert.deepEqual(replacement.body.seats, ["D1", "D2"]);
+  assert.equal(
+    (
+      await call(
+        "POST",
+        `/api/holds/${replacement.body.id}/pay`,
+        { outcome: "success" },
+        true,
+        true,
+      )
+    ).status,
+    404,
+  );
+  assert.notEqual(first.body.id, replacement.body.id);
+});
+
+test("invalid input, csrf, origin, and started shows are rejected", async () => {
+  assert.equal(
+    (await call("POST", "/api/holds/not-an-id/pay", { outcome: "success" }))
+      .status,
+    400,
+  );
+  const badOrigin: any = await (app as any).inject({
+    method: "POST",
+    url: "/api/shows/5/holds",
+    payload: { seats: ["E1"] },
+    headers: { cookie, "x-csrf-token": csrf, origin: "https://attacker.test" },
+  });
+  assert.equal(badOrigin.statusCode, 403);
+  const pool = new pg.Pool({ connectionString: url });
+  await pool.query(
+    "UPDATE shows SET starts_at=clock_timestamp()-interval '2 hours', ends_at=clock_timestamp()-interval '1 minute' WHERE id=5",
+  );
+  await pool.end();
+  assert.equal(
+    (await call("POST", "/api/shows/5/holds", { seats: ["E1"] })).status,
+    409,
+  );
+});
+
 test("hold payment is idempotent, failure retains, and partial conflict rolls back", async () => {
   const hold = await call("POST", "/api/shows/2/holds", {
     seats: ["B1", "B2"],
@@ -171,10 +224,25 @@ test("expired hold is rejected and cancellation frees seats", async () => {
   );
 });
 
+test("database ties booked seats to the booking show", async () => {
+  const pool = new pg.Pool({ connectionString: url });
+  const booking = await pool.query(
+    "SELECT id FROM bookings WHERE show_id=2 LIMIT 1",
+  );
+  await assert.rejects(
+    pool.query(
+      "INSERT INTO booking_seats(booking_id,show_id,seat_label) VALUES($1,1,'H10')",
+      [booking.rows[0].id],
+    ),
+    { code: "23503" },
+  );
+  await pool.end();
+});
+
 test("admin rejects overlap and booked-show deletion", async () => {
   const show = (
     await call("GET", "/api/admin/shows", undefined, true, false, true)
-  ).body[0];
+  ).body.find((item: any) => new Date(item.starts_at) > new Date());
   assert.equal(
     (
       await call(

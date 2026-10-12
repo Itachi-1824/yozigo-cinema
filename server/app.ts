@@ -2,9 +2,10 @@ import {
   createHash,
   randomBytes,
   randomUUID,
-  scryptSync,
+  scrypt,
   timingSafeEqual,
 } from "node:crypto";
+import { promisify } from "node:util";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
@@ -28,13 +29,15 @@ type User = {
 type AuthRequest = FastifyRequest & { user?: User; csrf?: string };
 const tokenHash = (token: string) =>
   createHash("sha256").update(token).digest("hex");
-const passwordHash = (password: string) => {
+const scryptAsync = promisify(scrypt);
+const passwordHash = async (password: string) => {
   const salt = randomBytes(16).toString("hex");
-  return `${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
+  return `${salt}:${((await scryptAsync(password, salt, 64)) as Buffer).toString("hex")}`;
 };
-const passwordMatches = (password: string, stored: string) => {
+const passwordMatches = async (password: string, stored: string) => {
   const [salt, value] = stored.split(":");
-  const candidate = scryptSync(password, salt, 64);
+  if (!salt || !/^[0-9a-f]{128}$/i.test(value ?? "")) return false;
+  const candidate = (await scryptAsync(password, salt, 64)) as Buffer;
   return (
     value.length === candidate.length * 2 &&
     timingSafeEqual(candidate, Buffer.from(value, "hex"))
@@ -63,6 +66,14 @@ export function buildApp(connectionString = databaseUrl) {
     max: 100,
     timeWindow: "1 minute",
     errorResponseBuilder: () => ({ error: "Too many requests" }),
+  });
+  app.setErrorHandler((error: any, request, reply) => {
+    if (["22P02", "22007", "22003", "23502", "23514"].includes(error.code))
+      return fail(reply, 400, "Invalid request");
+    if (["23503", "23505", "23P01"].includes(error.code))
+      return fail(reply, 409, "Request conflicts with existing data");
+    request.log.error(error);
+    return fail(reply, 500, "Unable to process request");
   });
   app.addHook("onClose", async () => {
     await pool.end();
@@ -158,6 +169,16 @@ export function buildApp(connectionString = databaseUrl) {
       typeof body.genre !== "string"
     )
       return null;
+    if (
+      [body.title, body.language, body.genre].some(
+        (value) => value.trim().length < 1 || value.length > 120,
+      ) ||
+      body.description.length > 4000 ||
+      ![body.poster_url, body.backdrop_url].every(
+        (value) => /^\/(?!\/)|^https?:\/\//.test(value) && value.length <= 2048,
+      )
+    )
+      return null;
     return body;
   }
   async function showData(id: number, userId?: number) {
@@ -245,15 +266,24 @@ export function buildApp(connectionString = databaseUrl) {
       if (
         !b ||
         typeof b.name !== "string" ||
-        !/^\S+@\S+\.\S+$/.test(b.email ?? "") ||
+        b.name.trim().length < 1 ||
+        b.name.trim().length > 100 ||
+        typeof b.email !== "string" ||
+        b.email.trim().length > 254 ||
+        !/^\S+@\S+\.\S+$/.test(b.email.trim()) ||
         typeof b.password !== "string" ||
-        b.password.length < 8
+        b.password.length < 8 ||
+        b.password.length > 128
       )
         return fail(reply, 400, "Invalid signup details");
       try {
         const { rows } = await pool.query(
           "INSERT INTO users(name,email,password_hash) VALUES($1,$2,$3) RETURNING id,name,email,role",
-          [b.name.trim(), b.email.toLowerCase(), passwordHash(b.password)],
+          [
+            b.name.trim(),
+            b.email.trim().toLowerCase(),
+            await passwordHash(b.password),
+          ],
         );
         reply.code(201);
         return await createSession(reply, publicUser(rows[0]));
@@ -271,12 +301,12 @@ export function buildApp(connectionString = databaseUrl) {
       const b = request.body;
       const { rows } = await pool.query(
         "SELECT id,name,email,role,password_hash FROM users WHERE email=$1",
-        [typeof b?.email === "string" ? b.email.toLowerCase() : ""],
+        [typeof b?.email === "string" ? b.email.trim().toLowerCase() : ""],
       );
       if (
         !rows[0] ||
         typeof b?.password !== "string" ||
-        !passwordMatches(b.password, rows[0].password_hash)
+        !(await passwordMatches(b.password, rows[0].password_hash))
       )
         return fail(reply, 401, "Invalid email or password");
       return createSession(reply, publicUser(rows[0]));
@@ -364,15 +394,22 @@ export function buildApp(connectionString = databaseUrl) {
     try {
       await c.query("BEGIN");
       const exists = await c.query(
-        "SELECT id,price_paise FROM shows WHERE id=$1 FOR UPDATE",
+        "SELECT id,price_paise,starts_at FROM shows WHERE id=$1 FOR UPDATE",
         [showId],
       );
       if (!exists.rows[0]) {
         await c.query("ROLLBACK");
         return fail(reply, 404, "Show not found");
       }
+      if (
+        new Date(exists.rows[0].starts_at) <=
+        new Date((await c.query("SELECT clock_timestamp() now")).rows[0].now)
+      ) {
+        await c.query("ROLLBACK");
+        return fail(reply, 409, "Show has started");
+      }
       const active = await c.query(
-        `SELECT h.id,array_agg(hs.seat_label ORDER BY hs.seat_label) seats,h.expires_at FROM holds h JOIN hold_seats hs ON hs.hold_id=h.id WHERE h.show_id=$1 AND h.user_id=$2 AND h.invalidated_at IS NULL AND h.booking_id IS NULL AND h.expires_at>now() GROUP BY h.id`,
+        `SELECT h.id,array_agg(hs.seat_label ORDER BY hs.seat_label) seats,h.expires_at FROM holds h JOIN hold_seats hs ON hs.hold_id=h.id WHERE h.show_id=$1 AND h.user_id=$2 AND h.invalidated_at IS NULL AND h.booking_id IS NULL AND h.expires_at>clock_timestamp() GROUP BY h.id`,
         [showId, request.user!.id],
       );
       const sorted = [...seats].sort();
@@ -390,8 +427,8 @@ export function buildApp(connectionString = databaseUrl) {
         });
       }
       const unavailable = await c.query(
-        `SELECT seat_label FROM booking_seats bs JOIN bookings b ON b.id=bs.booking_id WHERE bs.show_id=$1 AND bs.released_at IS NULL AND b.status='confirmed' UNION SELECT hs.seat_label FROM hold_seats hs JOIN holds h ON h.id=hs.hold_id WHERE h.show_id=$1 AND h.invalidated_at IS NULL AND h.booking_id IS NULL AND h.expires_at>now()`,
-        [showId],
+        `SELECT seat_label FROM booking_seats bs JOIN bookings b ON b.id=bs.booking_id WHERE bs.show_id=$1 AND bs.released_at IS NULL AND b.status='confirmed' UNION SELECT hs.seat_label FROM hold_seats hs JOIN holds h ON h.id=hs.hold_id WHERE h.show_id=$1 AND h.user_id<>$2 AND h.invalidated_at IS NULL AND h.booking_id IS NULL AND h.expires_at>clock_timestamp()`,
+        [showId, request.user!.id],
       );
       const bad = sorted.filter((s) =>
         unavailable.rows.some((x: any) => x.seat_label === s),
@@ -401,12 +438,12 @@ export function buildApp(connectionString = databaseUrl) {
         return fail(reply, 409, "Seats unavailable", { seats: bad });
       }
       await c.query(
-        "UPDATE holds SET invalidated_at=now() WHERE show_id=$1 AND user_id=$2 AND invalidated_at IS NULL AND booking_id IS NULL AND expires_at>now()",
+        "UPDATE holds SET invalidated_at=clock_timestamp() WHERE show_id=$1 AND user_id=$2 AND invalidated_at IS NULL AND booking_id IS NULL AND expires_at>clock_timestamp()",
         [showId, request.user!.id],
       );
       const id = randomUUID();
       const h = await c.query(
-        `INSERT INTO holds(id,show_id,user_id,expires_at) VALUES($1,$2,$3,now()+interval '5 minutes') RETURNING expires_at`,
+        `INSERT INTO holds(id,show_id,user_id,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '5 minutes') RETURNING expires_at`,
         [id, showId, request.user!.id],
       );
       for (const seat of sorted)
@@ -433,11 +470,27 @@ export function buildApp(connectionString = databaseUrl) {
     if (!(await session(request, reply, true))) return;
     const id = (request.params as any).id,
       b = request.body as any;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return fail(reply, 400, "Invalid hold");
     const c = await pool.connect();
     try {
       await c.query("BEGIN");
+      const holdRef = await c.query("SELECT show_id FROM holds WHERE id=$1", [
+        id,
+      ]);
+      if (!holdRef.rows[0]) {
+        await c.query("ROLLBACK");
+        return fail(reply, 404, "Hold not found");
+      }
+      const show = await c.query(
+        "SELECT id,starts_at,price_paise FROM shows WHERE id=$1 FOR UPDATE",
+        [holdRef.rows[0].show_id],
+      );
+      if (!show.rows[0]) {
+        await c.query("ROLLBACK");
+        return fail(reply, 404, "Hold not found");
+      }
       const hold = await c.query(
-        "SELECT h.*,s.price_paise FROM holds h JOIN shows s ON s.id=h.show_id WHERE h.id=$1 FOR UPDATE",
+        "SELECT h.* FROM holds h WHERE h.id=$1 FOR UPDATE OF h",
         [id],
       );
       if (!hold.rows[0] || Number(hold.rows[0].user_id) !== request.user!.id) {
@@ -445,13 +498,17 @@ export function buildApp(connectionString = databaseUrl) {
         return fail(reply, 404, "Hold not found");
       }
       const h = hold.rows[0];
-      await c.query("SELECT id FROM shows WHERE id=$1 FOR UPDATE", [h.show_id]);
       if (h.booking_id) {
         const out = await booking(h.booking_id);
         await c.query("COMMIT");
         return { booking: out };
       }
-      if (h.invalidated_at || new Date(h.expires_at) <= new Date()) {
+      const clock = (await c.query("SELECT clock_timestamp() now")).rows[0].now;
+      if (new Date(show.rows[0].starts_at) <= new Date(clock)) {
+        await c.query("ROLLBACK");
+        return fail(reply, 409, "Show has started");
+      }
+      if (h.invalidated_at || new Date(h.expires_at) <= new Date(clock)) {
         await c.query("ROLLBACK");
         return fail(reply, 409, "Hold expired");
       }
@@ -476,7 +533,7 @@ export function buildApp(connectionString = databaseUrl) {
           bookingId,
           h.show_id,
           request.user!.id,
-          Number(h.price_paise) * seats.length,
+          Number(show.rows[0].price_paise) * seats.length,
         ],
       );
       for (const seat of seats)
@@ -521,21 +578,36 @@ export function buildApp(connectionString = databaseUrl) {
   });
   app.post("/api/bookings/:id/cancel", async (request: AuthRequest, reply) => {
     if (!(await session(request, reply, true))) return;
+    const bookingId = (request.params as any).id;
+    if (!/^[0-9a-f-]{36}$/i.test(bookingId))
+      return fail(reply, 400, "Invalid booking");
     const c = await pool.connect();
     try {
       await c.query("BEGIN");
+      const ref = await c.query(
+        "SELECT show_id FROM bookings WHERE id=$1 AND user_id=$2",
+        [bookingId, request.user!.id],
+      );
+      if (!ref.rows[0]) {
+        await c.query("ROLLBACK");
+        return fail(reply, 404, "Booking not found");
+      }
+      await c.query("SELECT id FROM shows WHERE id=$1 FOR UPDATE", [
+        ref.rows[0].show_id,
+      ]);
       const result = await c.query(
-        "SELECT b.*,s.starts_at FROM bookings b JOIN shows s ON s.id=b.show_id WHERE b.id=$1 AND b.user_id=$2 FOR UPDATE",
-        [(request.params as any).id, request.user!.id],
+        "SELECT b.*,s.starts_at FROM bookings b JOIN shows s ON s.id=b.show_id WHERE b.id=$1 AND b.user_id=$2 FOR UPDATE OF b",
+        [bookingId, request.user!.id],
       );
       const b = result.rows[0];
       if (!b) {
         await c.query("ROLLBACK");
         return fail(reply, 404, "Booking not found");
       }
+      const clock = (await c.query("SELECT clock_timestamp() now")).rows[0].now;
       if (
         b.status !== "confirmed" ||
-        new Date(b.starts_at).getTime() - Date.now() < 7200000
+        new Date(b.starts_at).getTime() - new Date(clock).getTime() < 7200000
       ) {
         await c.query("ROLLBACK");
         return fail(reply, 409, "Booking cannot be cancelled");

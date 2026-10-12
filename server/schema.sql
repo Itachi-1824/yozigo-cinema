@@ -52,8 +52,9 @@ CREATE TABLE IF NOT EXISTS bookings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(), cancelled_at TIMESTAMPTZ
 );
 DO $$ BEGIN
-  ALTER TABLE bookings ADD CONSTRAINT bookings_id_show_id_unique UNIQUE (id, show_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='bookings_id_show_id_unique' AND conrelid='bookings'::regclass) THEN
+    ALTER TABLE bookings ADD CONSTRAINT bookings_id_show_id_unique UNIQUE (id, show_id);
+  END IF;
 END $$;
 CREATE TABLE IF NOT EXISTS booking_seats (
   booking_id UUID NOT NULL,
@@ -64,8 +65,9 @@ CREATE TABLE IF NOT EXISTS booking_seats (
   CONSTRAINT booking_seats_booking_show_fk FOREIGN KEY (booking_id, show_id) REFERENCES bookings(id, show_id) ON DELETE CASCADE
 );
 DO $$ BEGIN
-  ALTER TABLE booking_seats ADD CONSTRAINT booking_seats_booking_show_fk FOREIGN KEY (booking_id, show_id) REFERENCES bookings(id, show_id) ON DELETE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='booking_seats_booking_show_fk' AND conrelid='booking_seats'::regclass) THEN
+    ALTER TABLE booking_seats ADD CONSTRAINT booking_seats_booking_show_fk FOREIGN KEY (booking_id, show_id) REFERENCES bookings(id, show_id) ON DELETE CASCADE;
+  END IF;
 END $$;
 ALTER TABLE booking_seats DROP CONSTRAINT IF EXISTS booking_seats_show_id_seat_label_released_at_key;
 CREATE UNIQUE INDEX IF NOT EXISTS booking_seats_active_unique ON booking_seats(show_id, seat_label) WHERE released_at IS NULL;

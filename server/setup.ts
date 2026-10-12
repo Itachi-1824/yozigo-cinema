@@ -14,6 +14,9 @@ const hash = (password: string) => {
 
 await client.connect();
 try {
+  await client.query("BEGIN");
+  // Serialize schema and seed work when two app processes start together.
+  await client.query("SELECT pg_advisory_xact_lock(652351)");
   await client.query(
     await readFile(join(import.meta.dirname, "schema.sql"), "utf8"),
   );
@@ -22,7 +25,6 @@ try {
   } = await client.query<{ count: string }>("SELECT count(*) FROM movies");
   if (count !== "0") process.exitCode = 0;
   else {
-    await client.query("BEGIN");
     const users = [
       [
         process.env.DEMO_CUSTOMER_EMAIL ?? "customer@frame.test",
@@ -128,8 +130,8 @@ try {
           ],
         );
       }
-    await client.query("COMMIT");
   }
+  await client.query("COMMIT");
 } catch (error) {
   await client.query("ROLLBACK");
   throw error;

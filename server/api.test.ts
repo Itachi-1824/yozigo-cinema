@@ -86,6 +86,16 @@ test.after(async () => {
   if (app) await app.close();
 });
 
+test("setup can rerun concurrently without changing stored records", async () => {
+  const before = await app.pool.query("SELECT (SELECT count(*) FROM users) users, (SELECT count(*) FROM movies) movies, (SELECT count(*) FROM shows) shows, (SELECT count(*) FROM sessions) sessions");
+  await Promise.all([0, 1].map(() => exec(process.execPath, ["--import", "tsx", "server/setup.ts"], {
+    cwd: process.cwd(), env: { ...process.env, DATABASE_URL: url },
+  })));
+  const after = await app.pool.query("SELECT (SELECT count(*) FROM users) users, (SELECT count(*) FROM movies) movies, (SELECT count(*) FROM shows) shows, (SELECT count(*) FROM sessions) sessions");
+  assert.deepEqual(after.rows, before.rows);
+  assert.equal((await call("GET", "/api/auth/me")).status, 200);
+});
+
 test("auth gates, ownership and admin role", async () => {
   assert.equal(
     (await call("GET", "/api/shows/1", undefined, false)).status,

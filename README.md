@@ -113,7 +113,7 @@ Create `frame_test` once; an already-existing database needs no creation. Backen
 
 ## Demo walkthrough
 
-Use [the recording guide](docs/DEMO.md) for a 3–5 minute demonstration, including two independent browser sessions competing for the same seat. This project is prepared locally; repository publication, external video sharing and the hiring-email reply are separate submission steps.
+Use [the recording guide](docs/DEMO.md) to reproduce a 3–5 minute demonstration, including two independent browser sessions competing for the same seat. The [review release](https://github.com/Itachi-1824/yozigo-cinema/releases/tag/review-v1) contains the recorded walkthrough and source archive. See [the review checklist](docs/REVIEW.md) before submission.
 
 ## Assumptions and limits
 

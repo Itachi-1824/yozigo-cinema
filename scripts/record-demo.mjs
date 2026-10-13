@@ -14,6 +14,25 @@ const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
+async function recordingContext(browser, split = false) {
+  const size = { width: split ? 1280 : 2560, height: 1440 };
+  const context = await browser.newContext({
+    viewport: size,
+    recordVideo: { dir: rawDir, size, fps: 30 },
+  });
+  if (!split) {
+    // Render text at native 2K pixels while retaining the familiar 1280px layout.
+    await context.addInitScript(() => {
+      document.addEventListener("DOMContentLoaded", () => {
+        const style = document.createElement("style");
+        style.textContent = "html{zoom:2}.site-shell,.boot-screen{min-height:50vh}.auth-page{min-height:calc(50vh - 68px)}.admin-modal{max-height:calc(50dvh - 40px)}.inspector{max-height:45vh}";
+        document.head.append(style);
+      }, { once: true });
+    });
+  }
+  return context;
+}
+
 await mkdir(rawDir, { recursive: true });
 
 async function apiLogin(api, email, password) {
@@ -127,10 +146,7 @@ let mainContext,
   rightRecording,
   adminRecording;
 try {
-  mainContext = await browser.newContext({
-    recordVideo: { dir: rawDir, size: { width: 1280, height: 720 } },
-    viewport: { width: 1280, height: 720 },
-  });
+  mainContext = await recordingContext(browser);
   const main = await mainContext.newPage();
   mainRecording = main.video();
   await main.goto(baseURL);
@@ -198,14 +214,8 @@ try {
   await pause(7000);
   await mainContext.close();
 
-  leftContext = await browser.newContext({
-    recordVideo: { dir: rawDir, size: { width: 1280, height: 720 } },
-    viewport: { width: 1280, height: 720 },
-  });
-  rightContext = await browser.newContext({
-    recordVideo: { dir: rawDir, size: { width: 1280, height: 720 } },
-    viewport: { width: 1280, height: 720 },
-  });
+  leftContext = await recordingContext(browser, true);
+  rightContext = await recordingContext(browser, true);
   const left = await leftContext.newPage(),
     right = await rightContext.newPage();
   leftRecording = left.video();
@@ -266,7 +276,7 @@ try {
   assert(winnerBooking, "race booking missing");
   await Promise.all([leftContext.close(), rightContext.close()]);
 
-  adminContext = await browser.newContext({ recordVideo: { dir: rawDir, size: { width: 1280, height: 720 } }, viewport: { width: 1280, height: 720 } });
+  adminContext = await recordingContext(browser);
   const admin = await adminContext.newPage();
   adminRecording = admin.video();
   await login(admin, "admin@frame.test", "FrameAdmin2026!");

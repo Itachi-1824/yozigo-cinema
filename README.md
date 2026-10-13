@@ -2,11 +2,15 @@
 
 A cinema booking app with a sample film catalogue. Compare films, view dated screenings, reserve up to six seats, and confirm a simulated payment. Built with Astro, React, TypeScript, Fastify and PostgreSQL.
 
+[2K screen recording and source archive](https://github.com/Itachi-1824/yozigo-cinema/releases/tag/submission-v1) · [Automated checks](https://github.com/Itachi-1824/yozigo-cinema/actions)
+
 ## Run with Docker
 
-Install Docker Desktop (or Docker Engine with Compose), then:
+Install Git and Docker Desktop (or Docker Engine with Compose), then:
 
 ```sh
+git clone https://github.com/Itachi-1824/yozigo-cinema.git
+cd yozigo-cinema
 docker compose up --build -d
 ```
 
@@ -89,7 +93,7 @@ erDiagram
 |---|---|
 | `users` | id, name, unique normalized email, password_hash, customer/admin role |
 | `sessions` | token_hash, user_id, csrf_token, expires_at |
-| `movies` | title, description, language, duration_minutes, rating, poster_url, backdrop_url, genre |
+| `movies` | id, title, description, language, duration_minutes, rating, poster_url, backdrop_url, genre, release_date, certification, credits, gallery, trailer_url, source_url |
 | `shows` | movie_id, starts_at, ends_at, price_paise; exclusion constraint prevents overlaps |
 | `holds` | UUID, show_id, user_id, expires_at, invalidated_at, booking_id |
 | `hold_seats` | hold_id, seat_label; one entry per selected seat |
@@ -113,7 +117,9 @@ Create `frame_test` once; an already-existing database needs no creation. Backen
 
 ## Demo walkthrough
 
-Use [the recording guide](docs/DEMO.md) to reproduce a 3–5 minute demonstration, including two independent browser sessions competing for the same seat. The [review release](https://github.com/Itachi-1824/yozigo-cinema/releases/tag/review-v1) contains the recorded walkthrough and source archive. See [the review checklist](docs/REVIEW.md) before submission.
+Watch or download the [2560×1440 screen recording](https://github.com/Itachi-1824/yozigo-cinema/releases/download/submission-v1/frame-demo.mp4). It shows discovery, signup, the six-seat limit, hold recovery on refresh, payment failure/retry, booking history, cancellation, two independent customers competing for one seat, and admin booking/film/schedule management. The [submission release](https://github.com/Itachi-1824/yozigo-cinema/releases/tag/submission-v1) also includes a source archive.
+
+Use [the recording guide](docs/DEMO.md) to reproduce the demonstration. See [the verification checklist](docs/REVIEW.md) for coverage.
 
 ## Assumptions and limits
 
@@ -122,4 +128,4 @@ Use [the recording guide](docs/DEMO.md) to reproduce a 3–5 minute demonstratio
 - Changing a film's duration is blocked when it affects confirmed bookings or creates a schedule overlap. Removing a film or show with booking history is blocked, including cancelled history.
 - No real payments, email receipts, QR admission system, password reset or multi-cinema search. The supplied brief does not require them.
 - No autoplay audio. Sound preferences live in the browser; authentication credentials do not.
-- No public deployment or submission is claimed by this repository.
+- No live hosted deployment; the screen recording demonstrates the locally running app.

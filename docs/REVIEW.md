@@ -1,13 +1,13 @@
-# Review package
+# Verification checklist
 
-Status: prepared for owner review. No hiring email has been sent and no reviewer access has been granted.
+The source and recording package covers the required assessment flows and the three bonus flows.
 
 ## Open
 
 - Local Docker app: http://localhost:8080
 - Development preview: http://127.0.0.1:4321
-- Private repository: https://github.com/Itachi-1824/yozigo-cinema
-- Recording and source archive: https://github.com/Itachi-1824/yozigo-cinema/releases/tag/review-v1
+- Repository: https://github.com/Itachi-1824/yozigo-cinema
+- 2K recording and source archive: https://github.com/Itachi-1824/yozigo-cinema/releases/tag/submission-v1
 - Setup, test accounts, key decisions and database diagram: [README](../README.md)
 
 ## What to review
@@ -33,9 +33,5 @@ The primary action color is reserved for actions and selection. Availability rem
 Rechecked the Yozigo email and linked brief on 13 October 2026. Required flows are 1–7; bonus flows are 8–10. The submission asks for a GitHub link, reproducible README with test accounts and key decisions, database design, and a 3–5 minute screen recording. A live hosted URL is optional. The recording must include two independent customers competing for one seat.
 
 The email arrived on 13 October at 00:07 IST and gives five days. This suggests 18 October; no exact cutoff is specified.
-
-## Before sending
-
-After owner approval, give the hiring team access to the private repository (their GitHub usernames are not supplied in the email), or approve making the repository public. Ensure they can view/download the recording, then reply to the original email with the repository and recording links.
 
 Payments and film content are sample data. There is no public deployment. The app covers one cinema and one screen; its remaining limits are listed in README.
